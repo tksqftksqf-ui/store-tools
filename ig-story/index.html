@@ -23,14 +23,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .hdr-title{font-size:17px;font-weight:700;letter-spacing:-.3px}
 .hdr-sub{font-size:12px;color:var(--gray);margin-left:8px}
 
-.app{display:flex;gap:16px;padding:16px 24px 60px;max-width:1440px;margin:0 auto;align-items:flex-start}
+.app{
+  display:grid;
+  grid-template-columns:220px 1fr 260px;
+  grid-template-areas:
+    "left canvas textblock"
+    "left ctrlblock rightblock";
+  column-gap:16px;row-gap:12px;
+  padding:16px 24px 60px;max-width:1440px;margin:0 auto;align-items:start;
+}
 .panel{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:16px}
 .panel h3{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
 
-.left{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
-.right{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
-.center{flex:1;display:flex;flex-direction:column;align-items:center;gap:12px}
-.center .panel{width:min(340px,80vw)}
+.left{grid-area:left;display:flex;flex-direction:column;gap:12px}
+.right{grid-area:rightblock;display:flex;flex-direction:column;gap:12px}
+.stage-block{grid-area:canvas;display:flex;flex-direction:column;align-items:center}
+.text-block{grid-area:textblock;display:flex;flex-direction:column;gap:12px}
+.ctrl-block{grid-area:ctrlblock;display:flex;flex-direction:column;align-items:center;gap:12px}
+.text-block .panel,.ctrl-block .panel{width:min(340px,80vw)}
 
 .pagelist{display:flex;flex-direction:column;gap:6px}
 .pagerow{display:flex;gap:6px}
@@ -94,12 +104,18 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
   body{font-size:15px}
   .hdr{padding:10px 16px;flex-wrap:wrap;gap:2px}
   .hdr-title{font-size:16px}
-  .app{flex-direction:column;padding:12px 12px 60px;gap:12px;align-items:stretch}
-  .center{order:-1}
-  .left{order:-2;width:100%}
-  .right{order:0;width:100%}
+  .app{
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "left"
+      "canvas"
+      "textblock"
+      "ctrlblock"
+      "rightblock";
+    padding:12px 12px 60px;gap:12px;
+  }
   #stage{width:min(420px,88vw)}
-  .center .panel{width:min(420px,88vw)}
+  .text-block .panel,.ctrl-block .panel{width:min(420px,88vw)}
   .hint{max-width:100%}
   .ctrlbtn{padding:12px 18px;font-size:14px}
   .pagebtn,.sbtn{padding:11px 6px;font-size:14px}
@@ -138,12 +154,15 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
     </div>
   </div>
 
-  <!-- CENTER: stage -->
-  <div class="center">
+  <!-- CANVAS -->
+  <div class="stage-block">
     <div class="stage-wrap">
       <canvas id="stage" width="1080" height="1920"></canvas>
     </div>
+  </div>
 
+  <!-- TEXT LAYERS + PROPS -->
+  <div class="text-block">
     <div class="panel">
       <h3>文字圖層</h3>
       <div class="textlayer-list" id="textLayerList"></div>
@@ -176,7 +195,10 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       </div>
       <button class="sbtn danger" id="btnDelText" style="width:100%">刪除此文字</button>
     </div>
+  </div>
 
+  <!-- CONTROLS -->
+  <div class="ctrl-block">
     <div class="controls">
       <button class="ctrlbtn" id="btnPreview">▶ 預覽出場動畫</button>
       <button class="ctrlbtn primary" id="btnExportImg">📷 匯出圖片</button>
@@ -192,7 +214,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
     <div class="hint">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。影片匯出僅保留畫面（無聲音）。</div>
   </div>
 
-  <!-- RIGHT: text tools -->
+  <!-- RIGHT: slot props -->
   <div class="right">
     <div class="panel" id="slotProps" style="display:none">
       <h3>素材位置</h3>
