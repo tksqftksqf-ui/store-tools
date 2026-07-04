@@ -155,7 +155,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <span class="hint">圖片停留秒數（僅純照片時，影片以素材長度為主）：</span>
       <input type="number" id="holdSeconds" value="3" min="1" max="15" step="0.5" style="width:60px;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit">
     </div>
-    <div class="hint">點擊空白版位可上傳照片／影片；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小。影片匯出僅保留畫面（無聲音）。</div>
+    <div class="hint">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小。影片匯出僅保留畫面（無聲音）。</div>
   </div>
 
   <!-- RIGHT: text tools -->
@@ -227,7 +227,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 </div>
 
-<input type="file" id="mediaFileInput" accept="image/*,video/*" style="display:none">
+<input type="file" id="mediaFileInput" accept="image/*,video/*" multiple style="display:none">
 <div id="hiddenMedia" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden"></div>
 <textarea id="canvasTextEdit" class="canvas-text-edit" style="display:none"></textarea>
 
@@ -309,6 +309,14 @@ function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 function currentPage(){ return state.pages[state.currentPageIndex]; }
 
 // ---------- media loading ----------
+function releaseSlotMedia(slot){
+  if(!slot || !slot.el) return;
+  try{
+    if(slot.type==='video') slot.el.pause();
+    URL.revokeObjectURL(slot.el.src);
+    slot.el.remove();
+  }catch(e){}
+}
 function loadMediaFile(file, cb){
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video');
@@ -526,14 +534,7 @@ document.getElementById('btnClearPage').onclick = ()=>{
   const hasContent = page.slots.some(s=>s) || page.texts.length>0;
   if(!hasContent) return;
   if(!confirm('確定要清除本頁的所有素材與文字嗎？此動作無法復原。')) return;
-  page.slots.forEach(slot=>{
-    if(!slot || !slot.el) return;
-    try{
-      if(slot.type==='video') slot.el.pause();
-      URL.revokeObjectURL(slot.el.src);
-      slot.el.remove();
-    }catch(e){}
-  });
+  page.slots.forEach(slot=> releaseSlotMedia(slot));
   page.slots = Array.from({length:LAYOUT_META[page.layout].count},()=>null);
   page.texts = [];
   state.selectedTextId = null;
@@ -723,12 +724,21 @@ canvas.addEventListener('wheel', e=>{
 }, {passive:false});
 
 mediaFileInput.addEventListener('change', e=>{
-  const file = e.target.files[0];
+  const files = Array.from(e.target.files);
   mediaFileInput.value='';
-  if(!file || pendingSlotIndex===null) return;
+  if(!files.length || pendingSlotIndex===null) return;
   const page = currentPage();
-  const idx = pendingSlotIndex;
-  loadMediaFile(file, media=>{ page.slots[idx] = media; });
+  const targets = [];
+  for(let i=pendingSlotIndex; i<page.slots.length && targets.length<files.length; i++) targets.push(i);
+  targets.forEach((slotIdx, i)=>{
+    const file = files[i];
+    releaseSlotMedia(page.slots[slotIdx]);
+    page.slots[slotIdx] = null;
+    loadMediaFile(file, media=>{ page.slots[slotIdx] = media; });
+  });
+  if(files.length > targets.length){
+    alert(`此版面剩餘格數不足，已依序填入 ${targets.length} 格，另外 ${files.length-targets.length} 個檔案未使用。`);
+  }
   pendingSlotIndex = null;
 });
 
