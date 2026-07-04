@@ -89,6 +89,8 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 .custom-fonts-list{font-size:11px;color:var(--gray);margin-top:6px}
 
+.canvas-text-edit{position:fixed;z-index:200;background:rgba(255,255,255,.94);border:2px solid #0ea5e9;border-radius:8px;resize:none;outline:none;box-sizing:border-box;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.3);font-family:inherit}
+
 @media (max-width: 820px){
   body{font-size:15px}
   .hdr{padding:10px 16px;flex-wrap:wrap;gap:2px}
@@ -153,7 +155,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <span class="hint">圖片停留秒數（僅純照片時，影片以素材長度為主）：</span>
       <input type="number" id="holdSeconds" value="3" min="1" max="15" step="0.5" style="width:60px;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit">
     </div>
-    <div class="hint">點擊空白版位可上傳照片／影片；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置。影片匯出僅保留畫面（無聲音）。</div>
+    <div class="hint">點擊空白版位可上傳照片／影片；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小。影片匯出僅保留畫面（無聲音）。</div>
   </div>
 
   <!-- RIGHT: text tools -->
@@ -227,6 +229,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 <input type="file" id="mediaFileInput" accept="image/*,video/*" style="display:none">
 <div id="hiddenMedia" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden"></div>
+<textarea id="canvasTextEdit" class="canvas-text-edit" style="display:none"></textarea>
 
 <script>
 const W = 1080, H = 1920;
@@ -281,6 +284,7 @@ const LAYOUT_META = {
 };
 
 const STAGGER_INTERVAL = 0.7; // 秒，同頁多素材依序出場的間隔
+const HANDLE_HIT_R = 80; // 文字縮放把手的可點擊半徑（canvas 內部座標）
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
 
@@ -424,6 +428,24 @@ function renderPage(ctx, page, opts){
       ctx.setLineDash([10,6]);
       ctx.strokeRect(box.x,box.y,box.w,box.h);
       ctx.restore();
+      if(!opts.hideHandle){
+        const hx = box.x+box.w, hy = box.y+box.h;
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(hx, hy, 34, 0, Math.PI*2);
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(hx-14, hy+14);
+        ctx.lineTo(hx+14, hy-14);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
   if(opts.selectedSlot!=null && !opts.forExport && rects[opts.selectedSlot]){
@@ -457,7 +479,7 @@ function loop(){
     renderPage(ctx, page, {animate:true, t});
     if(t > previewAnim.duration) previewAnim = null;
   } else {
-    renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot});
+    renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen});
   }
   requestAnimationFrame(loop);
 }
@@ -561,23 +583,38 @@ function getCanvasPoint(e){
   return {x:(e.clientX-r.left)*scaleX, y:(e.clientY-r.top)*scaleY};
 }
 
-let drag = null; // {mode:'text', textId, offX, offY} | {mode:'pan', slotIndex, startPX, startPY, startPanX, startPanY}
+let drag = null; // {mode:'text', textId, offX, offY} | {mode:'pan', slotIndex, startPX, startPY, startPanX, startPanY} | {mode:'resize', textId, startPX, startPY, startSize}
 let pointerMoved = false;
 let dragHoverSlot = null; // slot index currently hovered while dragging media across cells
+let inlineEditOpen = false;
 const mediaFileInput = document.getElementById('mediaFileInput');
 let pendingSlotIndex = null;
 
 canvas.addEventListener('pointerdown', e=>{
+  if(inlineEditOpen) closeInlineTextEdit();
   const p = getCanvasPoint(e);
   pointerMoved = false;
   const page = currentPage();
+  if(state.selectedTextId){
+    const selT = page.texts.find(t=>t.id===state.selectedTextId);
+    if(selT){
+      const box = textBoundingBox(ctx, selT);
+      const hx = box.x+box.w, hy = box.y+box.h;
+      if(Math.hypot(p.x-hx, p.y-hy) <= HANDLE_HIT_R){
+        drag = {mode:'resize', textId:selT.id, startPX:p.x, startPY:p.y, startSize:selT.size};
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+  }
   for(let i=page.texts.length-1;i>=0;i--){
     const t = page.texts[i];
     const box = textBoundingBox(ctx, t);
     if(p.x>=box.x && p.x<=box.x+box.w && p.y>=box.y && p.y<=box.y+box.h){
+      const wasSelected = state.selectedTextId === t.id;
       state.selectedTextId = t.id;
       state.selectedSlotIndex = null;
-      drag = {mode:'text', textId:t.id, offX:p.x-t.x, offY:p.y-t.y};
+      drag = {mode:'text', textId:t.id, offX:p.x-t.x, offY:p.y-t.y, wasSelected};
       renderTextProps(); renderTextLayerList(); renderSlotProps();
       canvas.setPointerCapture(e.pointerId);
       return;
@@ -611,6 +648,14 @@ canvas.addEventListener('pointermove', e=>{
   if(drag.mode==='text'){
     const t = page.texts.find(t=>t.id===drag.textId);
     if(t){ t.x = p.x-drag.offX; t.y = p.y-drag.offY; }
+  } else if(drag.mode==='resize'){
+    const t = page.texts.find(t=>t.id===drag.textId);
+    if(!t) return;
+    const startDist = Math.hypot(drag.startPX-t.x, drag.startPY-t.y) || 1;
+    const curDist = Math.hypot(p.x-t.x, p.y-t.y);
+    t.size = clamp(Math.round(drag.startSize * (curDist/startDist)), 20, 220);
+    const sizeInput = document.getElementById('txtSize');
+    if(sizeInput) sizeInput.value = t.size;
   } else if(drag.mode==='pan'){
     const slot = page.slots[drag.slotIndex];
     const rect = rectsFor(page.layout)[drag.slotIndex];
@@ -642,6 +687,13 @@ canvas.addEventListener('pointerup', e=>{
     drag = null;
     renderSlotProps();
     return;
+  }
+  if(drag && drag.mode==='resize'){
+    drag = null;
+    return;
+  }
+  if(drag && drag.mode==='text' && !wasDrag && drag.wasSelected){
+    openInlineTextEdit(drag.textId);
   }
   dragHoverSlot = null;
   drag = null;
@@ -733,7 +785,7 @@ function renderTextProps(){
   const panel = document.getElementById('textProps');
   const page = currentPage();
   const t = page.texts.find(t=>t.id===state.selectedTextId);
-  if(!t){ panel.style.display='none'; return; }
+  if(!t){ panel.style.display='none'; if(inlineEditOpen) closeInlineTextEdit(); return; }
   panel.style.display='block';
   document.getElementById('txtContent').value = t.text;
   document.getElementById('txtFont').value = t.font;
@@ -744,9 +796,69 @@ function renderTextProps(){
   document.querySelectorAll('.align-btns button').forEach(b=> b.classList.toggle('on', b.dataset.align===t.align));
 }
 
+// ---------- inline text edit (直接在畫布上修改文字內容，方便手機操作) ----------
+const inlineEditEl = document.getElementById('canvasTextEdit');
+function positionInlineEdit(t){
+  const box = textBoundingBox(ctx, t);
+  const r = canvas.getBoundingClientRect();
+  const scale = r.width / W;
+  const pad = 16;
+  inlineEditEl.style.left = (r.left + box.x*scale - pad) + 'px';
+  inlineEditEl.style.top = (r.top + box.y*scale - pad) + 'px';
+  inlineEditEl.style.width = (box.w*scale + pad*2) + 'px';
+  inlineEditEl.style.height = (box.h*scale + pad*2) + 'px';
+  inlineEditEl.style.fontSize = (t.size*scale) + 'px';
+  inlineEditEl.style.lineHeight = (t.size*1.28*scale) + 'px';
+  inlineEditEl.style.fontFamily = `"${t.font}"`;
+  inlineEditEl.style.fontWeight = t.weight;
+  inlineEditEl.style.color = t.color;
+  inlineEditEl.style.textAlign = t.align;
+}
+function openInlineTextEdit(textId){
+  const t = currentPage().texts.find(t=>t.id===textId);
+  if(!t) return;
+  inlineEditOpen = true;
+  positionInlineEdit(t);
+  inlineEditEl.value = t.text;
+  inlineEditEl.style.display = 'block';
+  inlineEditEl.focus();
+  inlineEditEl.select();
+}
+function closeInlineTextEdit(){
+  if(!inlineEditOpen) return;
+  inlineEditOpen = false;
+  inlineEditEl.style.display = 'none';
+  renderTextLayerList();
+}
+inlineEditEl.addEventListener('input', ()=>{
+  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
+  if(!t) return;
+  t.text = inlineEditEl.value;
+  document.getElementById('txtContent').value = t.text;
+  positionInlineEdit(t);
+});
+inlineEditEl.addEventListener('blur', ()=> closeInlineTextEdit());
+inlineEditEl.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ e.preventDefault(); inlineEditEl.blur(); }
+});
+window.addEventListener('resize', ()=>{
+  if(!inlineEditOpen) return;
+  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
+  if(t) positionInlineEdit(t);
+});
+window.addEventListener('scroll', ()=>{
+  if(!inlineEditOpen) return;
+  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
+  if(t) positionInlineEdit(t);
+}, {passive:true});
+
 document.getElementById('txtContent').addEventListener('input', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-  if(t){ t.text = e.target.value; renderTextLayerList(); }
+  if(t){
+    t.text = e.target.value;
+    renderTextLayerList();
+    if(inlineEditOpen) inlineEditEl.value = t.text;
+  }
 });
 document.getElementById('txtFont').addEventListener('change', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
