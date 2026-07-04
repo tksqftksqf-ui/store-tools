@@ -153,7 +153,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <span class="hint">圖片停留秒數（僅純照片時，影片以素材長度為主）：</span>
       <input type="number" id="holdSeconds" value="3" min="1" max="15" step="0.5" style="width:60px;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit">
     </div>
-    <div class="hint">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小。影片匯出僅保留畫面（無聲音）。</div>
+    <div class="hint">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。影片匯出僅保留畫面（無聲音）。</div>
   </div>
 
   <!-- RIGHT: text tools -->
@@ -577,11 +577,27 @@ let drag = null; // {mode:'text', textId, offX, offY} | {mode:'pan', slotIndex, 
 let pointerMoved = false;
 let dragHoverSlot = null; // slot index currently hovered while dragging media across cells
 let inlineEditOpen = false;
+let longPressTimer = null;
+const LONG_PRESS_MS = 550;
+function clearLongPress(){ if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; } }
+function duplicateText(textId){
+  const page = currentPage();
+  const src = page.texts.find(t=>t.id===textId);
+  if(!src) return;
+  const copy = Object.assign({}, src, {id: uid(), x: src.x+30, y: src.y+30});
+  page.texts.push(copy);
+  state.selectedTextId = copy.id;
+  drag = null;
+  pointerMoved = true;
+  renderTextProps(); renderTextLayerList(); renderSlotProps();
+  if(navigator.vibrate) navigator.vibrate(30);
+}
 const mediaFileInput = document.getElementById('mediaFileInput');
 let pendingSlotIndex = null;
 
 canvas.addEventListener('pointerdown', e=>{
   if(inlineEditOpen) closeInlineTextEdit();
+  clearLongPress();
   const p = getCanvasPoint(e);
   pointerMoved = false;
   const page = currentPage();
@@ -607,6 +623,10 @@ canvas.addEventListener('pointerdown', e=>{
       drag = {mode:'text', textId:t.id, offX:p.x-t.x, offY:p.y-t.y, wasSelected};
       renderTextProps(); renderTextLayerList(); renderSlotProps();
       canvas.setPointerCapture(e.pointerId);
+      longPressTimer = setTimeout(()=>{
+        longPressTimer = null;
+        if(drag && drag.mode==='text' && drag.textId===t.id && !pointerMoved) duplicateText(t.id);
+      }, LONG_PRESS_MS);
       return;
     }
   }
@@ -633,6 +653,7 @@ canvas.addEventListener('pointerdown', e=>{
 canvas.addEventListener('pointermove', e=>{
   if(!drag) return;
   pointerMoved = true;
+  clearLongPress();
   const p = getCanvasPoint(e);
   const page = currentPage();
   if(drag.mode==='text'){
@@ -663,6 +684,7 @@ canvas.addEventListener('pointermove', e=>{
   }
 });
 canvas.addEventListener('pointerup', e=>{
+  clearLongPress();
   const wasDrag = drag && pointerMoved;
   if(drag && drag.mode==='pan' && wasDrag && dragHoverSlot!=null){
     const page = currentPage();
@@ -733,7 +755,7 @@ mediaFileInput.addEventListener('change', e=>{
 document.getElementById('btnAddText').onclick = ()=>{
   const page = currentPage();
   const t = {
-    id: uid(), text:'新增文字', font:'Noto Sans TC', weight:'700',
+    id: uid(), text:'新增文字', font:'PingFang TC', weight:'700',
     size:72, align:'center', color:'#ffffff', outline:true,
     x: W/2, y: H/2,
   };
