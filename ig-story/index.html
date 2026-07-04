@@ -67,8 +67,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .field label{display:block;font-size:12px;color:var(--gray);font-weight:600;margin-bottom:4px}
 .field textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:7px 9px;font-family:inherit;font-size:13px;resize:vertical;min-height:50px}
 .field select,.field input[type=number]{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:6px 9px;font-family:inherit;font-size:13px;background:#fff}
-.row2{display:flex;gap:8px}
-.row2 .field{flex:1}
 input[type=range]{width:100%}
 input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border-radius:8px;padding:2px}
 .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);font-weight:600}
@@ -79,10 +77,6 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 .textlayer-item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .textlayer-item button{border:none;background:none;color:var(--gray);cursor:pointer;font-size:14px;line-height:1}
 .textlayer-item button:hover{color:var(--red)}
-
-.align-btns{display:flex;gap:6px}
-.align-btns button{flex:1;border:1.5px solid var(--border);border-radius:8px;background:#fff;padding:6px;cursor:pointer;font-family:inherit;font-size:12px}
-.align-btns button.on{background:var(--text);color:#fff;border-color:var(--text)}
 
 .fontupload{border:1.5px dashed var(--border);border-radius:8px;padding:8px;text-align:center;font-size:12px;color:var(--gray);cursor:pointer}
 .fontupload:hover{border-color:var(--blue);color:var(--blue)}
@@ -186,37 +180,19 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
     <div class="panel" id="textProps" style="display:none">
       <h3>文字設定</h3>
       <div class="field">
-        <label>內容</label>
-        <textarea id="txtContent"></textarea>
-      </div>
-      <div class="field">
         <label>字體</label>
         <select id="txtFont"></select>
         <div class="fontupload" id="fontUploadBtn" style="margin-top:6px">＋ 上傳自訂字型檔（.ttf / .otf / .woff）</div>
         <input type="file" id="fontFileInput" accept=".ttf,.otf,.woff,.woff2" style="display:none">
         <div class="custom-fonts-list" id="customFontsList"></div>
       </div>
-      <div class="row2">
-        <div class="field">
-          <label>大小</label>
-          <input type="range" id="txtSize" min="20" max="220" value="64">
-        </div>
-        <div class="field">
-          <label>粗細</label>
-          <select id="txtWeight">
-            <option value="400">標準</option>
-            <option value="700" selected>粗體</option>
-            <option value="900">超粗</option>
-          </select>
-        </div>
-      </div>
       <div class="field">
-        <label>對齊</label>
-        <div class="align-btns">
-          <button data-align="left">靠左</button>
-          <button data-align="center" class="on">置中</button>
-          <button data-align="right">靠右</button>
-        </div>
+        <label>粗細</label>
+        <select id="txtWeight">
+          <option value="400">標準</option>
+          <option value="700" selected>粗體</option>
+          <option value="900">超粗</option>
+        </select>
       </div>
       <div class="field">
         <label>顏色</label>
@@ -667,8 +643,6 @@ canvas.addEventListener('pointermove', e=>{
     const startDist = Math.hypot(drag.startPX-t.x, drag.startPY-t.y) || 1;
     const curDist = Math.hypot(p.x-t.x, p.y-t.y);
     t.size = clamp(Math.round(drag.startSize * (curDist/startDist)), 20, 220);
-    const sizeInput = document.getElementById('txtSize');
-    if(sizeInput) sizeInput.value = t.size;
   } else if(drag.mode==='pan'){
     const slot = page.slots[drag.slotIndex];
     const rect = rectsFor(page.layout)[drag.slotIndex];
@@ -809,13 +783,10 @@ function renderTextProps(){
   const t = page.texts.find(t=>t.id===state.selectedTextId);
   if(!t){ panel.style.display='none'; if(inlineEditOpen) closeInlineTextEdit(); return; }
   panel.style.display='block';
-  document.getElementById('txtContent').value = t.text;
   document.getElementById('txtFont').value = t.font;
-  document.getElementById('txtSize').value = t.size;
   document.getElementById('txtWeight').value = t.weight;
   document.getElementById('txtColor').value = t.color;
   document.getElementById('txtOutline').checked = t.outline;
-  document.querySelectorAll('.align-btns button').forEach(b=> b.classList.toggle('on', b.dataset.align===t.align));
 }
 
 // ---------- inline text edit（獨立小視窗修改文字內容，方便手機操作，不會被畫布素材蓋住）----------
@@ -840,26 +811,14 @@ textEditArea.addEventListener('input', ()=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
   if(!t) return;
   t.text = textEditArea.value;
-  document.getElementById('txtContent').value = t.text;
+  renderTextLayerList();
 });
 document.getElementById('textEditDone').addEventListener('click', ()=> closeInlineTextEdit());
 textEditModal.addEventListener('click', e=>{ if(e.target===textEditModal) closeInlineTextEdit(); });
 
-document.getElementById('txtContent').addEventListener('input', e=>{
-  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-  if(t){
-    t.text = e.target.value;
-    renderTextLayerList();
-    if(inlineEditOpen) textEditArea.value = t.text;
-  }
-});
 document.getElementById('txtFont').addEventListener('change', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
   if(t) t.font = e.target.value;
-});
-document.getElementById('txtSize').addEventListener('input', e=>{
-  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-  if(t) t.size = +e.target.value;
 });
 document.getElementById('txtWeight').addEventListener('change', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
@@ -872,12 +831,6 @@ document.getElementById('txtColor').addEventListener('input', e=>{
 document.getElementById('txtOutline').addEventListener('change', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
   if(t) t.outline = e.target.checked;
-});
-document.querySelectorAll('.align-btns button').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-    if(t){ t.align = b.dataset.align; document.querySelectorAll('.align-btns button').forEach(x=>x.classList.toggle('on',x===b)); }
-  });
 });
 document.getElementById('btnDelText').onclick = ()=>{
   const page = currentPage();
