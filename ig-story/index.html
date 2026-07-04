@@ -56,6 +56,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .ctrlbtn.primary:hover{opacity:.9;color:#fff}
 .ctrlbtn.video{background:var(--green);border-color:var(--green);color:#fff}
 .ctrlbtn.video:hover{opacity:.9;color:#fff}
+.ctrlbtn.danger:hover{border-color:var(--red);color:var(--red)}
 .ctrlbtn:disabled{opacity:.4;cursor:not-allowed}
 
 .hint{font-size:12px;color:var(--gray);text-align:center;max-width:340px;line-height:1.6}
@@ -142,6 +143,9 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <button class="ctrlbtn" id="btnPreview">▶ 預覽出場動畫</button>
       <button class="ctrlbtn primary" id="btnExportImg">📷 匯出圖片</button>
       <button class="ctrlbtn video" id="btnExportVid">🎬 匯出影片</button>
+    </div>
+    <div class="controls">
+      <button class="ctrlbtn danger" id="btnClearPage">🗑 清除本頁內容</button>
     </div>
     <div class="controls" style="gap:6px">
       <span class="hint">圖片停留秒數（僅純照片時，影片以素材長度為主）：</span>
@@ -490,6 +494,25 @@ document.getElementById('btnDupPage').onclick = ()=>{
   p.slots = src.slots.slice();
   state.pages.splice(state.currentPageIndex+1,0,p);
   state.currentPageIndex++;
+  state.selectedSlotIndex = null;
+  renderAll();
+};
+document.getElementById('btnClearPage').onclick = ()=>{
+  const page = currentPage();
+  const hasContent = page.slots.some(s=>s) || page.texts.length>0;
+  if(!hasContent) return;
+  if(!confirm('確定要清除本頁的所有素材與文字嗎？此動作無法復原。')) return;
+  page.slots.forEach(slot=>{
+    if(!slot || !slot.el) return;
+    try{
+      if(slot.type==='video') slot.el.pause();
+      URL.revokeObjectURL(slot.el.src);
+      slot.el.remove();
+    }catch(e){}
+  });
+  page.slots = Array.from({length:LAYOUT_META[page.layout].count},()=>null);
+  page.texts = [];
+  state.selectedTextId = null;
   state.selectedSlotIndex = null;
   renderAll();
 };
