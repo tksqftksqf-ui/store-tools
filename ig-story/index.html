@@ -141,7 +141,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 <div class="usage-banner">
   <div class="safety">🔒 素材使用安全性：本工具所有照片／影片皆僅在您的瀏覽器內處理，不會上傳到任何伺服器或雲端，關閉頁面即清除，請安心使用。</div>
-  <div class="usage-text">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪可縮放；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。影片匯出僅保留畫面（無聲音）。</div>
+  <div class="usage-text">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。影片匯出僅保留畫面（無聲音）。</div>
 </div>
 
 <div class="app">
@@ -607,10 +607,11 @@ function getCanvasPoint(e){
   return {x:(e.clientX-r.left)*scaleX, y:(e.clientY-r.top)*scaleY};
 }
 
-let drag = null; // {mode:'text', textId, offX, offY} | {mode:'pan', slotIndex, startPX, startPY, startPanX, startPanY} | {mode:'resize', textId, startPX, startPY, startSize}
+let drag = null; // {mode:'text', textId, offX, offY} | {mode:'pan', slotIndex, startPX, startPY, startPanX, startPanY} | {mode:'resize', textId, startPX, startPY, startSize} | {mode:'pinch', slotIndex, ids, startDist, startZoom}
 let pointerMoved = false;
 let dragHoverSlot = null; // slot index currently hovered while dragging media across cells
 let inlineEditOpen = false;
+const activePointers = new Map(); // pointerId -> {x,y} in client coords, used for pinch-to-zoom
 let longPressTimer = null;
 const LONG_PRESS_MS = 550;
 function clearLongPress(){ if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; } }
@@ -630,6 +631,16 @@ const mediaFileInput = document.getElementById('mediaFileInput');
 let pendingSlotIndex = null;
 
 canvas.addEventListener('pointerdown', e=>{
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(activePointers.size===2 && drag && drag.mode==='pan'){
+    const ids = Array.from(activePointers.keys());
+    const pts = ids.map(id=>activePointers.get(id));
+    drag = {mode:'pinch', slotIndex:drag.slotIndex, ids,
+      startDist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1,
+      startZoom: currentPage().slots[drag.slotIndex]?.zoom || 1};
+    dragHoverSlot = null;
+    return;
+  }
   if(inlineEditOpen) closeInlineTextEdit();
   clearLongPress();
   const p = getCanvasPoint(e);
@@ -699,6 +710,15 @@ canvas.addEventListener('pointermove', e=>{
     const startDist = Math.hypot(drag.startPX-t.x, drag.startPY-t.y) || 1;
     const curDist = Math.hypot(p.x-t.x, p.y-t.y);
     t.size = clamp(Math.round(drag.startSize * (curDist/startDist)), 20, 220);
+  } else if(drag.mode==='pinch'){
+    activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    const slot = page.slots[drag.slotIndex];
+    if(!slot) return;
+    const pts = drag.ids.map(id=>activePointers.get(id));
+    if(!pts[0] || !pts[1]) return;
+    const curDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1;
+    slot.zoom = clamp(drag.startZoom * (curDist/drag.startDist), 1, 4);
+    renderSlotProps();
   } else if(drag.mode==='pan'){
     const slot = page.slots[drag.slotIndex];
     const rect = rectsFor(page.layout)[drag.slotIndex];
@@ -718,7 +738,12 @@ canvas.addEventListener('pointermove', e=>{
   }
 });
 canvas.addEventListener('pointerup', e=>{
+  activePointers.delete(e.pointerId);
   clearLongPress();
+  if(drag && drag.mode==='pinch'){
+    if(activePointers.size<2) drag = null;
+    return;
+  }
   const wasDrag = drag && pointerMoved;
   if(drag && drag.mode==='pan' && wasDrag && dragHoverSlot!=null){
     const page = currentPage();
@@ -746,6 +771,12 @@ canvas.addEventListener('pointerup', e=>{
   if(pendingSlotIndex!=null){
     mediaFileInput.click();
   }
+});
+canvas.addEventListener('pointercancel', e=>{
+  activePointers.delete(e.pointerId);
+  clearLongPress();
+  dragHoverSlot = null;
+  drag = null;
 });
 canvas.addEventListener('wheel', e=>{
   const p = getCanvasPoint(e);
