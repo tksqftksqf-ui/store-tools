@@ -89,7 +89,11 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 .custom-fonts-list{font-size:11px;color:var(--gray);margin-top:6px}
 
-.canvas-text-edit{position:fixed;z-index:200;background:rgba(255,255,255,.94);border:2px solid #0ea5e9;border-radius:8px;resize:none;outline:none;box-sizing:border-box;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.3);font-family:inherit}
+.text-edit-modal{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
+.text-edit-card{background:#fff;border-radius:16px;padding:18px;width:min(420px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.text-edit-title{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
+#textEditArea{width:100%;min-height:120px;border:1.5px solid var(--border);border-radius:10px;padding:12px;font-family:inherit;font-size:16px;line-height:1.5;resize:vertical}
+.text-edit-actions{display:flex;justify-content:flex-end;margin-top:12px}
 
 @media (max-width: 820px){
   body{font-size:15px}
@@ -229,7 +233,15 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 <input type="file" id="mediaFileInput" accept="image/*,video/*" multiple style="display:none">
 <div id="hiddenMedia" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden"></div>
-<textarea id="canvasTextEdit" class="canvas-text-edit" style="display:none"></textarea>
+<div id="textEditModal" class="text-edit-modal" style="display:none">
+  <div class="text-edit-card">
+    <div class="text-edit-title">編輯文字內容</div>
+    <textarea id="textEditArea"></textarea>
+    <div class="text-edit-actions">
+      <button class="ctrlbtn primary" id="textEditDone">完成</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const W = 1080, H = 1920;
@@ -746,7 +758,7 @@ mediaFileInput.addEventListener('change', e=>{
 document.getElementById('btnAddText').onclick = ()=>{
   const page = currentPage();
   const t = {
-    id: uid(), text:'雙十一優惠開跑', font:'Noto Sans TC', weight:'700',
+    id: uid(), text:'新增文字', font:'Noto Sans TC', weight:'700',
     size:72, align:'center', color:'#ffffff', outline:true,
     x: W/2, y: H/2,
   };
@@ -806,68 +818,39 @@ function renderTextProps(){
   document.querySelectorAll('.align-btns button').forEach(b=> b.classList.toggle('on', b.dataset.align===t.align));
 }
 
-// ---------- inline text edit (直接在畫布上修改文字內容，方便手機操作) ----------
-const inlineEditEl = document.getElementById('canvasTextEdit');
-function positionInlineEdit(t){
-  const box = textBoundingBox(ctx, t);
-  const r = canvas.getBoundingClientRect();
-  const scale = r.width / W;
-  const pad = 16;
-  inlineEditEl.style.left = (r.left + box.x*scale - pad) + 'px';
-  inlineEditEl.style.top = (r.top + box.y*scale - pad) + 'px';
-  inlineEditEl.style.width = (box.w*scale + pad*2) + 'px';
-  inlineEditEl.style.height = (box.h*scale + pad*2) + 'px';
-  inlineEditEl.style.fontSize = (t.size*scale) + 'px';
-  inlineEditEl.style.lineHeight = (t.size*1.28*scale) + 'px';
-  inlineEditEl.style.fontFamily = `"${t.font}"`;
-  inlineEditEl.style.fontWeight = t.weight;
-  inlineEditEl.style.color = t.color;
-  inlineEditEl.style.textAlign = t.align;
-}
+// ---------- inline text edit（獨立小視窗修改文字內容，方便手機操作，不會被畫布素材蓋住）----------
+const textEditModal = document.getElementById('textEditModal');
+const textEditArea = document.getElementById('textEditArea');
 function openInlineTextEdit(textId){
   const t = currentPage().texts.find(t=>t.id===textId);
   if(!t) return;
   inlineEditOpen = true;
-  positionInlineEdit(t);
-  inlineEditEl.value = t.text;
-  inlineEditEl.style.display = 'block';
-  inlineEditEl.focus();
-  inlineEditEl.select();
+  textEditArea.value = t.text;
+  textEditModal.style.display = 'flex';
+  textEditArea.focus();
+  textEditArea.select();
 }
 function closeInlineTextEdit(){
   if(!inlineEditOpen) return;
   inlineEditOpen = false;
-  inlineEditEl.style.display = 'none';
+  textEditModal.style.display = 'none';
   renderTextLayerList();
 }
-inlineEditEl.addEventListener('input', ()=>{
+textEditArea.addEventListener('input', ()=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
   if(!t) return;
-  t.text = inlineEditEl.value;
+  t.text = textEditArea.value;
   document.getElementById('txtContent').value = t.text;
-  positionInlineEdit(t);
 });
-inlineEditEl.addEventListener('blur', ()=> closeInlineTextEdit());
-inlineEditEl.addEventListener('keydown', e=>{
-  if(e.key==='Escape'){ e.preventDefault(); inlineEditEl.blur(); }
-});
-window.addEventListener('resize', ()=>{
-  if(!inlineEditOpen) return;
-  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-  if(t) positionInlineEdit(t);
-});
-window.addEventListener('scroll', ()=>{
-  if(!inlineEditOpen) return;
-  const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
-  if(t) positionInlineEdit(t);
-}, {passive:true});
+document.getElementById('textEditDone').addEventListener('click', ()=> closeInlineTextEdit());
+textEditModal.addEventListener('click', e=>{ if(e.target===textEditModal) closeInlineTextEdit(); });
 
 document.getElementById('txtContent').addEventListener('input', e=>{
   const t = currentPage().texts.find(t=>t.id===state.selectedTextId);
   if(t){
     t.text = e.target.value;
     renderTextLayerList();
-    if(inlineEditOpen) inlineEditEl.value = t.text;
+    if(inlineEditOpen) textEditArea.value = t.text;
   }
 });
 document.getElementById('txtFont').addEventListener('change', e=>{
