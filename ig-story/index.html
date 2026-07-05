@@ -25,7 +25,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 
 .usage-banner{background:var(--blue-bg);border-bottom:1px solid var(--border);padding:12px 24px;font-size:13px;line-height:1.6;color:var(--text)}
 .usage-banner .safety{font-weight:700;color:var(--blue);margin-bottom:4px;display:flex;align-items:center;gap:6px}
-.usage-banner .usage-text{color:var(--gray)}
+.usage-banner .usage-text{color:var(--gray);margin-top:6px}
+.usage-banner .usage-text b{color:var(--text);font-weight:700}
 
 .app{
   display:grid;
@@ -44,7 +45,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .stage-block{grid-area:canvas;display:flex;flex-direction:column;align-items:center}
 .text-block{grid-area:textblock;display:flex;flex-direction:column;gap:12px}
 .ctrl-block{grid-area:ctrlblock;display:flex;flex-direction:column;align-items:center;gap:12px}
-.text-block .panel,.ctrl-block .panel{width:min(340px,80vw)}
+.ctrl-block .panel{width:min(340px,80vw)}
 
 .pagelist{display:flex;flex-direction:column;gap:6px}
 .pagerow{display:flex;gap:6px}
@@ -141,7 +142,10 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 <div class="usage-banner">
   <div class="safety">🔒 素材使用安全性：本工具所有照片／影片皆僅在您的瀏覽器內處理，不會上傳到任何伺服器或雲端，關閉頁面即清除，請安心使用。</div>
-  <div class="usage-text">點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 0.7 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。影片匯出僅保留畫面（無聲音）。</div>
+  <div class="usage-text"><b>素材：</b>點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 1 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。</div>
+  <div class="usage-text"><b>文字：</b>拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。</div>
+  <div class="usage-text"><b>標示：</b>可新增圓形／橢圓形／方形標示框圈選照片重點，拖曳可移動、拖曳右下角把手可調整大小。</div>
+  <div class="usage-text"><b>匯出：</b>影片匯出僅保留畫面（無聲音）。</div>
 </div>
 
 <div class="app">
@@ -204,6 +208,29 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
         <label class="chk"><input type="checkbox" id="txtOutline" checked> 加黑色描邊（提升可讀性）</label>
       </div>
       <button class="sbtn danger" id="btnDelText" style="width:100%">刪除此文字</button>
+    </div>
+
+    <div class="panel">
+      <h3>圖片標示</h3>
+      <div class="textlayer-list" id="shapeLayerList"></div>
+      <div class="smallbtns">
+        <button class="sbtn" id="btnAddCircle">○ 圓形</button>
+        <button class="sbtn" id="btnAddEllipse">⬭ 橢圓</button>
+        <button class="sbtn" id="btnAddRect">▭ 方形</button>
+      </div>
+    </div>
+
+    <div class="panel" id="shapeProps" style="display:none">
+      <h3>標示設定</h3>
+      <div class="field">
+        <label>顏色</label>
+        <input type="color" id="shapeColor" value="#f97316">
+      </div>
+      <div class="field">
+        <label>線條粗細 <span id="shapeWidthVal">14</span></label>
+        <input type="range" id="shapeWidth" min="4" max="40" step="1" value="14">
+      </div>
+      <button class="sbtn danger" id="btnDelShape" style="width:100%">刪除此標示</button>
     </div>
   </div>
 
@@ -306,7 +333,7 @@ const LAYOUT_META = {
   six:   {count:6, label:'6張直式・等份'},
 };
 
-const STAGGER_INTERVAL = 0.7; // 秒，同頁多素材依序出場的間隔
+const STAGGER_INTERVAL = 1; // 秒，同頁多素材依序出場的間隔
 const HANDLE_HIT_R = 80; // 文字縮放把手的可點擊半徑（canvas 內部座標）
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -317,6 +344,7 @@ function newPage(layout='one'){
     layout,
     slots: Array.from({length:LAYOUT_META[layout].count},()=>null),
     texts: [],
+    shapes: [],
   };
 }
 
@@ -325,6 +353,7 @@ let state = {
   currentPageIndex: 0,
   selectedTextId: null,
   selectedSlotIndex: null,
+  selectedShapeId: null,
 };
 
 function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
@@ -435,6 +464,25 @@ function drawText(ctx, t){
   });
 }
 
+function shapeBoundingBox(s){
+  return {x:s.x-s.w/2, y:s.y-s.h/2, w:s.w, h:s.h};
+}
+
+function drawShape(ctx, s){
+  ctx.save();
+  ctx.strokeStyle = s.color;
+  ctx.lineWidth = s.lineWidth;
+  ctx.lineJoin = 'round';
+  if(s.type==='rect'){
+    ctx.strokeRect(s.x-s.w/2, s.y-s.h/2, s.w, s.h);
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, Math.max(s.w/2,0.01), Math.max(s.h/2,0.01), 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function renderPage(ctx, page, opts){
   opts = opts || {};
   ctx.clearRect(0,0,W,H);
@@ -448,7 +496,36 @@ function renderPage(ctx, page, opts){
     if(slot) drawCover(ctx, slot, rect);
     else if(!opts.forExport) drawPlaceholder(ctx, rect, i+1);
   });
+  page.shapes.forEach(s=> drawShape(ctx,s));
   page.texts.forEach(t=> drawText(ctx,t));
+  if(opts.selectedShapeId && !opts.forExport){
+    const sel = page.shapes.find(s=>s.id===opts.selectedShapeId);
+    if(sel){
+      const box = shapeBoundingBox(sel);
+      ctx.save();
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10,6]);
+      ctx.strokeRect(box.x,box.y,box.w,box.h);
+      ctx.restore();
+      const hx = box.x+box.w, hy = box.y+box.h;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(hx, hy, 34, 0, Math.PI*2);
+      ctx.fillStyle = '#0ea5e9';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(hx-14, hy+14);
+      ctx.lineTo(hx+14, hy-14);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
   if(opts.selectedId && !opts.forExport){
     const sel = page.texts.find(t=>t.id===opts.selectedId);
     if(sel){
@@ -510,7 +587,7 @@ function loop(){
     renderPage(ctx, page, {animate:true, t});
     if(t > previewAnim.duration) previewAnim = null;
   } else {
-    renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen});
+    renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen, selectedShapeId: state.selectedShapeId});
   }
   requestAnimationFrame(loop);
 }
@@ -527,7 +604,7 @@ function renderPageList(){
       const b = document.createElement('button');
       b.className = 'pagebtn'+(idx===state.currentPageIndex?' on':'');
       b.textContent = '頁面'+(idx+1);
-      b.onclick = ()=>{ state.currentPageIndex=idx; state.selectedTextId=null; state.selectedSlotIndex=null; renderAll(); };
+      b.onclick = ()=>{ state.currentPageIndex=idx; state.selectedTextId=null; state.selectedSlotIndex=null; state.selectedShapeId=null; renderAll(); };
       row.appendChild(b);
     });
     el.appendChild(row);
@@ -539,29 +616,34 @@ document.getElementById('btnAddPage').onclick = ()=>{
   state.currentPageIndex = state.pages.length-1;
   state.selectedTextId = null;
   state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
   renderAll();
 };
 document.getElementById('btnDupPage').onclick = ()=>{
   const src = currentPage();
-  const copy = JSON.parse(JSON.stringify({layout:src.layout, texts:src.texts}));
+  const copy = JSON.parse(JSON.stringify({layout:src.layout, texts:src.texts, shapes:src.shapes}));
   const p = newPage(src.layout);
   p.texts = copy.texts.map(t=>({...t, id:uid()}));
+  p.shapes = copy.shapes.map(s=>({...s, id:uid()}));
   p.slots = src.slots.slice();
   state.pages.splice(state.currentPageIndex+1,0,p);
   state.currentPageIndex++;
   state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
   renderAll();
 };
 document.getElementById('btnClearPage').onclick = ()=>{
   const page = currentPage();
-  const hasContent = page.slots.some(s=>s) || page.texts.length>0;
+  const hasContent = page.slots.some(s=>s) || page.texts.length>0 || page.shapes.length>0;
   if(!hasContent) return;
   if(!confirm('確定要清除本頁的所有素材與文字嗎？此動作無法復原。')) return;
   page.slots.forEach(slot=> releaseSlotMedia(slot));
   page.slots = Array.from({length:LAYOUT_META[page.layout].count},()=>null);
   page.texts = [];
+  page.shapes = [];
   state.selectedTextId = null;
   state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
   renderAll();
 };
 document.getElementById('btnDelPage').onclick = ()=>{
@@ -570,6 +652,7 @@ document.getElementById('btnDelPage').onclick = ()=>{
   state.currentPageIndex = Math.max(0, state.currentPageIndex-1);
   state.selectedTextId = null;
   state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
   renderAll();
 };
 
@@ -658,6 +741,18 @@ canvas.addEventListener('pointerdown', e=>{
       }
     }
   }
+  if(state.selectedShapeId){
+    const selS = page.shapes.find(s=>s.id===state.selectedShapeId);
+    if(selS){
+      const box = shapeBoundingBox(selS);
+      const hx = box.x+box.w, hy = box.y+box.h;
+      if(Math.hypot(p.x-hx, p.y-hy) <= HANDLE_HIT_R){
+        drag = {mode:'shaperesize', shapeId:selS.id, startPX:p.x, startPY:p.y, startW:selS.w, startH:selS.h};
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+  }
   for(let i=page.texts.length-1;i>=0;i--){
     const t = page.texts[i];
     const box = textBoundingBox(ctx, t);
@@ -665,8 +760,9 @@ canvas.addEventListener('pointerdown', e=>{
       const wasSelected = state.selectedTextId === t.id;
       state.selectedTextId = t.id;
       state.selectedSlotIndex = null;
+      state.selectedShapeId = null;
       drag = {mode:'text', textId:t.id, offX:p.x-t.x, offY:p.y-t.y, wasSelected};
-      renderTextProps(); renderTextLayerList(); renderSlotProps();
+      renderTextProps(); renderTextLayerList(); renderSlotProps(); renderShapeProps(); renderShapeLayerList();
       canvas.setPointerCapture(e.pointerId);
       longPressTimer = setTimeout(()=>{
         longPressTimer = null;
@@ -675,14 +771,28 @@ canvas.addEventListener('pointerdown', e=>{
       return;
     }
   }
+  for(let i=page.shapes.length-1;i>=0;i--){
+    const s = page.shapes[i];
+    const box = shapeBoundingBox(s);
+    if(p.x>=box.x && p.x<=box.x+box.w && p.y>=box.y && p.y<=box.y+box.h){
+      state.selectedTextId = null;
+      state.selectedSlotIndex = null;
+      state.selectedShapeId = s.id;
+      drag = {mode:'shape', shapeId:s.id, offX:p.x-s.x, offY:p.y-s.y};
+      renderTextProps(); renderTextLayerList(); renderSlotProps(); renderShapeProps(); renderShapeLayerList();
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+  }
   const rects = rectsFor(page.layout);
   const idx = rects.findIndex(r=> p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h);
   if(idx>=0 && page.slots[idx]){
     state.selectedTextId = null;
     state.selectedSlotIndex = idx;
+    state.selectedShapeId = null;
     const slot = page.slots[idx];
     drag = {mode:'pan', slotIndex:idx, startPX:p.x, startPY:p.y, startPanX:slot.panX||0, startPanY:slot.panY||0};
-    renderTextProps(); renderTextLayerList(); renderSlotProps();
+    renderTextProps(); renderTextLayerList(); renderSlotProps(); renderShapeProps(); renderShapeLayerList();
     canvas.setPointerCapture(e.pointerId);
     return;
   }
@@ -691,9 +801,12 @@ canvas.addEventListener('pointerdown', e=>{
   }
   state.selectedTextId = null;
   state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
   renderTextProps();
   renderTextLayerList();
   renderSlotProps();
+  renderShapeProps();
+  renderShapeLayerList();
 });
 canvas.addEventListener('pointermove', e=>{
   if(!drag) return;
@@ -735,6 +848,21 @@ canvas.addEventListener('pointermove', e=>{
     const dx = p.x - drag.startPX, dy = p.y - drag.startPY;
     slot.panX = clamp(drag.startPanX - dx*(c.sw/rect.w), -c.maxOffX, c.maxOffX);
     slot.panY = clamp(drag.startPanY - dy*(c.sh/rect.h), -c.maxOffY, c.maxOffY);
+  } else if(drag.mode==='shape'){
+    const s = page.shapes.find(s=>s.id===drag.shapeId);
+    if(s){ s.x = p.x-drag.offX; s.y = p.y-drag.offY; }
+  } else if(drag.mode==='shaperesize'){
+    const s = page.shapes.find(s=>s.id===drag.shapeId);
+    if(!s) return;
+    if(s.type==='circle'){
+      const startDist = Math.hypot(drag.startPX-s.x, drag.startPY-s.y) || 1;
+      const curDist = Math.hypot(p.x-s.x, p.y-s.y);
+      const size = clamp(drag.startW * (curDist/startDist), 40, 1000);
+      s.w = size; s.h = size;
+    } else {
+      s.w = clamp(Math.abs(p.x-s.x)*2, 40, 1000);
+      s.h = clamp(Math.abs(p.y-s.y)*2, 40, 1000);
+    }
   }
 });
 canvas.addEventListener('pointerup', e=>{
@@ -761,13 +889,17 @@ canvas.addEventListener('pointerup', e=>{
     drag = null;
     return;
   }
+  if(drag && drag.mode==='shaperesize'){
+    drag = null;
+    return;
+  }
   if(drag && drag.mode==='text' && !wasDrag && drag.wasSelected){
     openInlineTextEdit(drag.textId);
   }
   dragHoverSlot = null;
   drag = null;
   if(wasDrag) return;
-  if(state.selectedTextId || state.selectedSlotIndex!=null) return; // just selected something, don't also open uploader
+  if(state.selectedTextId || state.selectedSlotIndex!=null || state.selectedShapeId) return; // just selected something, don't also open uploader
   if(pendingSlotIndex!=null){
     mediaFileInput.click();
   }
@@ -964,6 +1096,78 @@ document.getElementById('btnReplaceSlot').onclick = ()=>{
   mediaFileInput.click();
 };
 
+// ---------- shape (annotation) layers ----------
+const SHAPE_LABELS = {circle:'圓形', ellipse:'橢圓', rect:'方形'};
+function newShape(type){
+  const size = type==='ellipse' ? {w:380,h:240} : {w:300,h:300};
+  return {id:uid(), type, x:W/2, y:H/2, w:size.w, h:size.h, color:'#f97316', lineWidth:14};
+}
+function addShape(type){
+  const page = currentPage();
+  const s = newShape(type);
+  page.shapes.push(s);
+  state.selectedTextId = null;
+  state.selectedSlotIndex = null;
+  state.selectedShapeId = s.id;
+  renderTextProps(); renderTextLayerList(); renderSlotProps();
+  renderShapeLayerList(); renderShapeProps();
+}
+document.getElementById('btnAddCircle').onclick = ()=> addShape('circle');
+document.getElementById('btnAddEllipse').onclick = ()=> addShape('ellipse');
+document.getElementById('btnAddRect').onclick = ()=> addShape('rect');
+
+function renderShapeLayerList(){
+  const el = document.getElementById('shapeLayerList');
+  el.innerHTML='';
+  currentPage().shapes.forEach((s,i)=>{
+    const row = document.createElement('div');
+    row.className='textlayer-item'+(s.id===state.selectedShapeId?' on':'');
+    row.innerHTML = `<span>${SHAPE_LABELS[s.type]} ${i+1}</span><button>✕</button>`;
+    row.querySelector('span').onclick = ()=>{
+      state.selectedTextId = null;
+      state.selectedSlotIndex = null;
+      state.selectedShapeId = s.id;
+      renderTextProps(); renderTextLayerList(); renderSlotProps();
+      renderShapeLayerList(); renderShapeProps();
+    };
+    row.querySelector('button').onclick = ev=>{
+      ev.stopPropagation();
+      const page = currentPage();
+      page.shapes = page.shapes.filter(x=>x.id!==s.id);
+      if(state.selectedShapeId===s.id) state.selectedShapeId=null;
+      renderShapeLayerList(); renderShapeProps();
+    };
+    el.appendChild(row);
+  });
+}
+
+function renderShapeProps(){
+  const panel = document.getElementById('shapeProps');
+  const page = currentPage();
+  const s = page.shapes.find(s=>s.id===state.selectedShapeId);
+  if(!s){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  document.getElementById('shapeColor').value = s.color;
+  document.getElementById('shapeWidth').value = s.lineWidth;
+  document.getElementById('shapeWidthVal').textContent = s.lineWidth;
+}
+document.getElementById('shapeColor').addEventListener('input', e=>{
+  const s = currentPage().shapes.find(s=>s.id===state.selectedShapeId);
+  if(s) s.color = e.target.value;
+});
+document.getElementById('shapeWidth').addEventListener('input', e=>{
+  const s = currentPage().shapes.find(s=>s.id===state.selectedShapeId);
+  if(!s) return;
+  s.lineWidth = +e.target.value;
+  document.getElementById('shapeWidthVal').textContent = s.lineWidth;
+});
+document.getElementById('btnDelShape').onclick = ()=>{
+  const page = currentPage();
+  page.shapes = page.shapes.filter(s=>s.id!==state.selectedShapeId);
+  state.selectedShapeId = null;
+  renderShapeLayerList(); renderShapeProps();
+};
+
 // custom font upload
 document.getElementById('fontUploadBtn').onclick = ()=> document.getElementById('fontFileInput').click();
 document.getElementById('fontFileInput').addEventListener('change', async e=>{
@@ -1080,6 +1284,8 @@ function renderAll(){
   renderTextLayerList();
   renderTextProps();
   renderSlotProps();
+  renderShapeLayerList();
+  renderShapeProps();
 }
 renderAll();
 </script>
