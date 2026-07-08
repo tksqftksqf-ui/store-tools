@@ -55,14 +55,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .sbtn{flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:12px;color:var(--gray);font-family:inherit}
 .sbtn:hover{border-color:var(--blue);color:var(--blue)}
 .sbtn.danger:hover{border-color:var(--red);color:var(--red)}
+.sbtn:disabled{opacity:.4;cursor:not-allowed}
+.sbtn:disabled:hover{border-color:var(--border);color:var(--gray)}
 
 .layoutgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.layoutbtn{border:1.5px solid var(--border);border-radius:10px;background:var(--light);cursor:pointer;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:inherit}
+.layoutbtn{border:1.5px solid var(--border);border-radius:10px;background:var(--light);cursor:pointer;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:inherit;position:relative}
 .layoutbtn.on{border-color:var(--blue);background:var(--blue-bg)}
 .layoutbtn svg{width:34px;height:60px}
 .layoutbtn span{font-size:11px;color:var(--gray);font-weight:600}
 .layoutbtn.on span{color:var(--blue)}
 .layoutbtn.wide{grid-column:1/3}
+.layoutbtn.recommend{border-color:#f97316;box-shadow:0 0 0 2px rgba(249,115,22,.25)}
+.layoutbtn.recommend::after{content:'建議';position:absolute;top:-8px;right:-6px;background:#f97316;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;line-height:1.3}
+
+.photofirst-banner{background:var(--blue-bg);border:1.5px solid var(--blue);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:8px;line-height:1.5}
+.photofirst-banner b{color:var(--blue)}
+.photofirst-banner .cancel{display:block;margin-top:4px;color:var(--gray);cursor:pointer;text-decoration:underline;font-size:11px}
 
 .stage-wrap{background:#111;border-radius:16px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.12);width:fit-content;margin:0 auto}
 #stage{display:block;width:min(340px,80vw);aspect-ratio:9/16;height:auto;border-radius:10px;background:#000;touch-action:none;cursor:default}
@@ -164,7 +172,20 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
     <div class="panel">
       <h3>版面配置</h3>
+      <div class="hint" style="margin:0 0 8px;text-align:left">可以先選照片再選版型（點下方按鈕），也可以先選版型再選照片（直接點版型，之後點空格上傳）。</div>
+      <button class="sbtn" id="btnPhotoFirst" style="width:100%;margin-bottom:8px">📷 先選照片建立新頁</button>
+      <div id="photoFirstBanner" style="display:none"></div>
       <div class="layoutgrid" id="layoutGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h3>輪播畫面</h3>
+      <div class="hint" style="margin:0 0 8px;text-align:left">照片數量超過版型格數時，可新增下一組畫面，播放完第一組會自動接續下一組（共用版型與停留秒數）。</div>
+      <div class="pagelist" id="groupList"></div>
+      <div class="smallbtns">
+        <button class="sbtn" id="btnAddGroup">＋ 新增輪播畫面</button>
+        <button class="sbtn danger" id="btnDelGroup">刪除本組</button>
+      </div>
     </div>
   </div>
 
@@ -246,7 +267,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
     </div>
     <div class="controls" style="gap:6px">
       <span class="hint">圖片停留秒數（僅純照片時，影片以素材長度為主）：</span>
-      <input type="number" id="holdSeconds" value="7" min="1" max="15" step="0.5" style="width:60px;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit">
+      <input type="number" id="holdSeconds" value="1" min="1" max="15" step="0.5" style="width:60px;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;font-family:inherit">
     </div>
   </div>
 
@@ -269,6 +290,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 </div>
 
 <input type="file" id="mediaFileInput" accept="image/*,video/*" multiple style="display:none">
+<input type="file" id="photoFirstInput" accept="image/*,video/*" multiple style="display:none">
 <div id="hiddenMedia" style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden"></div>
 <div id="textEditModal" class="text-edit-modal" style="display:none">
   <div class="text-edit-card">
@@ -323,14 +345,33 @@ function rectsFor(layout){
       }
       return cells;
     }
+    case 'five23': {
+      const rowH = H/2;
+      const cells=[];
+      const topW = W/2;
+      for(let c=0;c<2;c++) cells.push({x:c*topW+(c>0?g:0), y:0, w:topW-g, h:rowH-g});
+      const botW = W/3;
+      for(let c=0;c<3;c++) cells.push({x:c*botW+(c>0?g:0), y:rowH+g, w:botW-g, h:rowH-g});
+      return cells;
+    }
+    case 'five14': {
+      const cells=[];
+      const topH = H*0.55;
+      cells.push({x:0, y:0, w:W, h:topH-g});
+      const botH = H-topH, botW = W/4;
+      for(let c=0;c<4;c++) cells.push({x:c*botW+(c>0?g:0), y:topH+g, w:botW-g, h:botH-g});
+      return cells;
+    }
   }
 }
 const LAYOUT_META = {
-  one:   {count:1, label:'單張全版'},
-  two:   {count:2, label:'2張橫式・等份'},
-  three: {count:3, label:'3張橫式・等份'},
-  four:  {count:4, label:'4張直式・等份'},
-  six:   {count:6, label:'6張直式・等份'},
+  one:    {count:1, label:'單張全版'},
+  two:    {count:2, label:'2張橫式・等份'},
+  three:  {count:3, label:'3張橫式・等份'},
+  four:   {count:4, label:'4張直式・等份'},
+  five23: {count:5, label:'5張・上2下3'},
+  five14: {count:5, label:'5張・上1下4'},
+  six:    {count:6, label:'6張直式・等份'},
 };
 
 const STAGGER_INTERVAL = 1; // 秒，同頁多素材依序出場的間隔
@@ -342,7 +383,8 @@ function newPage(layout='one'){
   return {
     id: uid(),
     layout,
-    slots: Array.from({length:LAYOUT_META[layout].count},()=>null),
+    groups: [Array.from({length:LAYOUT_META[layout].count},()=>null)],
+    currentGroup: 0,
     texts: [],
     shapes: [],
   };
@@ -359,6 +401,27 @@ let state = {
 function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
 function currentPage(){ return state.pages[state.currentPageIndex]; }
+function currentSlots(page){ return page.groups[page.currentGroup]; }
+function groupDuration(layout, slots, holdSeconds){
+  const n = LAYOUT_META[layout].count;
+  const staggerEnd = (n-1)*STAGGER_INTERVAL;
+  const videoDurations = slots.filter(s=>s && s.type==='video').map(s=>s.el.duration||0);
+  const maxVideo = videoDurations.length ? Math.max(...videoDurations) : 0;
+  return Math.max(staggerEnd + holdSeconds, staggerEnd + maxVideo + 0.3);
+}
+function totalPageDuration(page, holdSeconds){
+  return page.groups.reduce((sum,g)=> sum + groupDuration(page.layout, g, holdSeconds), 0);
+}
+function groupAtTime(page, holdSeconds, t){
+  let acc = 0;
+  for(let i=0;i<page.groups.length;i++){
+    const d = groupDuration(page.layout, page.groups[i], holdSeconds);
+    if(t < acc+d || i===page.groups.length-1){
+      return {slots: page.groups[i], localT: t-acc, index: i};
+    }
+    acc += d;
+  }
+}
 
 // ---------- media loading ----------
 function releaseSlotMedia(slot){
@@ -468,6 +531,10 @@ function shapeBoundingBox(s){
   return {x:s.x-s.w/2, y:s.y-s.h/2, w:s.w, h:s.h};
 }
 
+function slotSwapIconPos(rect){
+  return {x: rect.x+rect.w-44, y: rect.y+44};
+}
+
 function drawShape(ctx, s){
   ctx.save();
   ctx.strokeStyle = s.color;
@@ -485,6 +552,7 @@ function drawShape(ctx, s){
 
 function renderPage(ctx, page, opts){
   opts = opts || {};
+  const slots = opts.slots || currentSlots(page);
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle = '#000';
   ctx.fillRect(0,0,W,H);
@@ -492,7 +560,7 @@ function renderPage(ctx, page, opts){
   rects.forEach((rect,i)=>{
     const revealAt = i*STAGGER_INTERVAL;
     if(opts.animate && opts.t < revealAt) return;
-    const slot = page.slots[i];
+    const slot = slots[i];
     if(slot) drawCover(ctx, slot, rect);
     else if(!opts.forExport) drawPlaceholder(ctx, rect, i+1);
   });
@@ -564,6 +632,21 @@ function renderPage(ctx, page, opts){
     ctx.setLineDash([]);
     ctx.strokeRect(r.x+2,r.y+2,r.w-4,r.h-4);
     ctx.restore();
+    const ic = slotSwapIconPos(r);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ic.x, ic.y, 34, 0, Math.PI*2);
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 34px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⇄', ic.x, ic.y+2);
+    ctx.restore();
   }
   if(opts.hoverSlot!=null && !opts.forExport && rects[opts.hoverSlot]){
     const r = rects[opts.hoverSlot];
@@ -579,12 +662,13 @@ function renderPage(ctx, page, opts){
 }
 
 // ---------- main render loop ----------
-let previewAnim = null; // {start, duration}
+let previewAnim = null; // {start, duration, hold}
 function loop(){
   const page = currentPage();
   if(previewAnim){
     const t = (performance.now()-previewAnim.start)/1000;
-    renderPage(ctx, page, {animate:true, t});
+    const g = groupAtTime(page, previewAnim.hold, t);
+    renderPage(ctx, page, {animate:true, t:g.localT, slots:g.slots});
     if(t > previewAnim.duration) previewAnim = null;
   } else {
     renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen, selectedShapeId: state.selectedShapeId});
@@ -625,7 +709,8 @@ document.getElementById('btnDupPage').onclick = ()=>{
   const p = newPage(src.layout);
   p.texts = copy.texts.map(t=>({...t, id:uid()}));
   p.shapes = copy.shapes.map(s=>({...s, id:uid()}));
-  p.slots = src.slots.slice();
+  p.groups = src.groups.map(g=>g.slice());
+  p.currentGroup = src.currentGroup;
   state.pages.splice(state.currentPageIndex+1,0,p);
   state.currentPageIndex++;
   state.selectedSlotIndex = null;
@@ -634,11 +719,12 @@ document.getElementById('btnDupPage').onclick = ()=>{
 };
 document.getElementById('btnClearPage').onclick = ()=>{
   const page = currentPage();
-  const hasContent = page.slots.some(s=>s) || page.texts.length>0 || page.shapes.length>0;
+  const hasContent = page.groups.some(g=>g.some(s=>s)) || page.texts.length>0 || page.shapes.length>0;
   if(!hasContent) return;
   if(!confirm('確定要清除本頁的所有素材與文字嗎？此動作無法復原。')) return;
-  page.slots.forEach(slot=> releaseSlotMedia(slot));
-  page.slots = Array.from({length:LAYOUT_META[page.layout].count},()=>null);
+  page.groups.forEach(g=> g.forEach(slot=> releaseSlotMedia(slot)));
+  page.groups = [Array.from({length:LAYOUT_META[page.layout].count},()=>null)];
+  page.currentGroup = 0;
   page.texts = [];
   page.shapes = [];
   state.selectedTextId = null;
@@ -656,7 +742,97 @@ document.getElementById('btnDelPage').onclick = ()=>{
   renderAll();
 };
 
+// ---------- UI: carousel groups ----------
+function renderGroupList(){
+  const el = document.getElementById('groupList');
+  el.innerHTML='';
+  const page = currentPage();
+  for(let i=0;i<page.groups.length;i+=2){
+    const row = document.createElement('div'); row.className='pagerow';
+    [i,i+1].forEach(idx=>{
+      if(idx>=page.groups.length) return;
+      const b = document.createElement('button');
+      b.className = 'pagebtn'+(idx===page.currentGroup?' on':'');
+      b.textContent = '第'+(idx+1)+'組';
+      b.onclick = ()=>{ page.currentGroup=idx; state.selectedSlotIndex=null; renderAll(); };
+      row.appendChild(b);
+    });
+    el.appendChild(row);
+  }
+  document.getElementById('btnDelGroup').disabled = page.groups.length<=1;
+}
+document.getElementById('btnAddGroup').onclick = ()=>{
+  const page = currentPage();
+  const count = LAYOUT_META[page.layout].count;
+  page.groups.push(Array.from({length:count},()=>null));
+  page.currentGroup = page.groups.length-1;
+  state.selectedSlotIndex = null;
+  renderAll();
+};
+document.getElementById('btnDelGroup').onclick = ()=>{
+  const page = currentPage();
+  if(page.groups.length<=1) return;
+  if(!confirm('確定要刪除目前這組輪播畫面嗎？此動作無法復原。')) return;
+  page.groups[page.currentGroup].forEach(slot=> releaseSlotMedia(slot));
+  page.groups.splice(page.currentGroup,1);
+  page.currentGroup = Math.max(0, page.currentGroup-1);
+  state.selectedSlotIndex = null;
+  renderAll();
+};
+
 // ---------- UI: layout picker ----------
+let photoFirstFiles = null; // 待套用版型的照片清單（「先選照片」流程用）
+
+function bestLayoutMatch(n){
+  const keys = Object.keys(LAYOUT_META);
+  const exact = keys.find(k=>LAYOUT_META[k].count===n);
+  if(exact) return exact;
+  const larger = keys.filter(k=>LAYOUT_META[k].count>n).sort((a,b)=>LAYOUT_META[a].count-LAYOUT_META[b].count);
+  if(larger.length) return larger[0];
+  return keys.sort((a,b)=>LAYOUT_META[b].count-LAYOUT_META[a].count)[0];
+}
+
+function renderPhotoFirstBanner(){
+  const el = document.getElementById('photoFirstBanner');
+  if(!photoFirstFiles){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='block';
+  el.className = 'photofirst-banner';
+  el.innerHTML = `已選 <b>${photoFirstFiles.length}</b> 張照片／影片，請點選下方版型套用（會自動建立新頁）<span class="cancel" id="photoFirstCancel">取消</span>`;
+  document.getElementById('photoFirstCancel').onclick = ()=>{ photoFirstFiles=null; renderPhotoFirstBanner(); renderLayoutGrid(); };
+}
+
+function applyPhotoFirst(key){
+  const files = photoFirstFiles;
+  photoFirstFiles = null;
+  const count = LAYOUT_META[key].count;
+  const p = newPage(key);
+  const targets = Math.min(count, files.length);
+  for(let i=0;i<targets;i++){
+    const idx = i;
+    loadMediaFile(files[i], media=>{ p.groups[0][idx] = media; });
+  }
+  state.pages.push(p);
+  state.currentPageIndex = state.pages.length-1;
+  state.selectedTextId = null;
+  state.selectedSlotIndex = null;
+  state.selectedShapeId = null;
+  renderPhotoFirstBanner();
+  renderAll();
+  if(files.length > count){
+    alert(`此版型有 ${count} 格，已依序填入前 ${count} 個檔案，另外 ${files.length-count} 個檔案未使用。`);
+  }
+}
+
+document.getElementById('btnPhotoFirst').onclick = ()=> document.getElementById('photoFirstInput').click();
+document.getElementById('photoFirstInput').addEventListener('change', e=>{
+  const files = Array.from(e.target.files);
+  e.target.value='';
+  if(!files.length) return;
+  photoFirstFiles = files;
+  renderPhotoFirstBanner();
+  renderLayoutGrid();
+});
+
 function layoutIcon(layout){
   const rects = rectsFor(layout);
   const scale = 34/W;
@@ -666,22 +842,27 @@ function layoutIcon(layout){
 function renderLayoutGrid(){
   const el = document.getElementById('layoutGrid');
   el.innerHTML='';
+  const recommendKey = photoFirstFiles ? bestLayoutMatch(photoFirstFiles.length) : null;
   Object.keys(LAYOUT_META).forEach(key=>{
     const b = document.createElement('button');
-    b.className = 'layoutbtn'+(currentPage().layout===key?' on':'')+(key==='one'?' wide':'');
+    b.className = 'layoutbtn'
+      +(!photoFirstFiles && currentPage().layout===key?' on':'')
+      +(key==='one'?' wide':'')
+      +(key===recommendKey?' recommend':'');
     b.innerHTML = layoutIcon(key)+`<span>${LAYOUT_META[key].label}</span>`;
     b.onclick = ()=>{
+      if(photoFirstFiles){ applyPhotoFirst(key); return; }
       const page = currentPage();
       const newCount = LAYOUT_META[key].count;
-      const oldSlots = page.slots;
       page.layout = key;
-      page.slots = Array.from({length:newCount},(_,i)=> oldSlots[i]||null);
+      page.groups = page.groups.map(g=> Array.from({length:newCount},(_,i)=> g[i]||null));
       state.selectedSlotIndex = null;
       renderAll();
     };
     el.appendChild(b);
   });
 }
+
 
 // ---------- canvas interaction ----------
 function getCanvasPoint(e){
@@ -720,7 +901,7 @@ canvas.addEventListener('pointerdown', e=>{
     const pts = ids.map(id=>activePointers.get(id));
     drag = {mode:'pinch', slotIndex:drag.slotIndex, ids,
       startDist: Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1,
-      startZoom: currentPage().slots[drag.slotIndex]?.zoom || 1};
+      startZoom: currentSlots(currentPage())[drag.slotIndex]?.zoom || 1};
     dragHoverSlot = null;
     return;
   }
@@ -784,19 +965,32 @@ canvas.addEventListener('pointerdown', e=>{
       return;
     }
   }
+  if(state.selectedSlotIndex!=null){
+    const selRects = rectsFor(page.layout);
+    const selRect = selRects[state.selectedSlotIndex];
+    if(selRect){
+      const ic = slotSwapIconPos(selRect);
+      if(Math.hypot(p.x-ic.x, p.y-ic.y) <= HANDLE_HIT_R){
+        pendingSlotIndex = state.selectedSlotIndex;
+        mediaFileInput.click();
+        return;
+      }
+    }
+  }
   const rects = rectsFor(page.layout);
   const idx = rects.findIndex(r=> p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h);
-  if(idx>=0 && page.slots[idx]){
+  const slots = currentSlots(page);
+  if(idx>=0 && slots[idx]){
     state.selectedTextId = null;
     state.selectedSlotIndex = idx;
     state.selectedShapeId = null;
-    const slot = page.slots[idx];
+    const slot = slots[idx];
     drag = {mode:'pan', slotIndex:idx, startPX:p.x, startPY:p.y, startPanX:slot.panX||0, startPanY:slot.panY||0};
     renderTextProps(); renderTextLayerList(); renderSlotProps(); renderShapeProps(); renderShapeLayerList();
     canvas.setPointerCapture(e.pointerId);
     return;
   }
-  if(idx>=0 && !page.slots[idx]){
+  if(idx>=0 && !slots[idx]){
     pendingSlotIndex = idx;
   }
   state.selectedTextId = null;
@@ -825,7 +1019,7 @@ canvas.addEventListener('pointermove', e=>{
     t.size = clamp(Math.round(drag.startSize * (curDist/startDist)), 20, 220);
   } else if(drag.mode==='pinch'){
     activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
-    const slot = page.slots[drag.slotIndex];
+    const slot = currentSlots(page)[drag.slotIndex];
     if(!slot) return;
     const pts = drag.ids.map(id=>activePointers.get(id));
     if(!pts[0] || !pts[1]) return;
@@ -833,7 +1027,7 @@ canvas.addEventListener('pointermove', e=>{
     slot.zoom = clamp(drag.startZoom * (curDist/drag.startDist), 1, 4);
     renderSlotProps();
   } else if(drag.mode==='pan'){
-    const slot = page.slots[drag.slotIndex];
+    const slot = currentSlots(page)[drag.slotIndex];
     const rect = rectsFor(page.layout)[drag.slotIndex];
     if(!slot || !rect) return;
     const rects = rectsFor(page.layout);
@@ -875,10 +1069,11 @@ canvas.addEventListener('pointerup', e=>{
   const wasDrag = drag && pointerMoved;
   if(drag && drag.mode==='pan' && wasDrag && dragHoverSlot!=null){
     const page = currentPage();
+    const slots = currentSlots(page);
     const a = drag.slotIndex, b = dragHoverSlot;
-    const tmp = page.slots[a];
-    page.slots[a] = page.slots[b];
-    page.slots[b] = tmp;
+    const tmp = slots[a];
+    slots[a] = slots[b];
+    slots[b] = tmp;
     state.selectedSlotIndex = b;
     dragHoverSlot = null;
     drag = null;
@@ -915,9 +1110,10 @@ canvas.addEventListener('wheel', e=>{
   const page = currentPage();
   const rects = rectsFor(page.layout);
   const idx = rects.findIndex(r=> p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h);
-  if(idx<0 || !page.slots[idx]) return;
+  const slots = currentSlots(page);
+  if(idx<0 || !slots[idx]) return;
   e.preventDefault();
-  const slot = page.slots[idx];
+  const slot = slots[idx];
   const factor = Math.exp(-e.deltaY*0.0015);
   slot.zoom = clamp((slot.zoom||1)*factor, 1, 4);
   const rect = rects[idx];
@@ -934,13 +1130,14 @@ mediaFileInput.addEventListener('change', e=>{
   mediaFileInput.value='';
   if(!files.length || pendingSlotIndex===null) return;
   const page = currentPage();
+  const slots = currentSlots(page);
   const targets = [];
-  for(let i=pendingSlotIndex; i<page.slots.length && targets.length<files.length; i++) targets.push(i);
+  for(let i=pendingSlotIndex; i<slots.length && targets.length<files.length; i++) targets.push(i);
   targets.forEach((slotIdx, i)=>{
     const file = files[i];
-    releaseSlotMedia(page.slots[slotIdx]);
-    page.slots[slotIdx] = null;
-    loadMediaFile(file, media=>{ page.slots[slotIdx] = media; });
+    releaseSlotMedia(slots[slotIdx]);
+    slots[slotIdx] = null;
+    loadMediaFile(file, media=>{ slots[slotIdx] = media; });
   });
   if(files.length > targets.length){
     alert(`此版面剩餘格數不足，已依序填入 ${targets.length} 格，另外 ${files.length-targets.length} 個檔案未使用。`);
@@ -1063,7 +1260,7 @@ document.getElementById('btnDelText').onclick = ()=>{
 function renderSlotProps(){
   const panel = document.getElementById('slotProps');
   const page = currentPage();
-  const slot = state.selectedSlotIndex!=null ? page.slots[state.selectedSlotIndex] : null;
+  const slot = state.selectedSlotIndex!=null ? currentSlots(page)[state.selectedSlotIndex] : null;
   if(!slot){ panel.style.display='none'; return; }
   panel.style.display='block';
   const zoom = slot.zoom||1;
@@ -1072,7 +1269,7 @@ function renderSlotProps(){
 }
 document.getElementById('slotZoom').addEventListener('input', e=>{
   const page = currentPage();
-  const slot = state.selectedSlotIndex!=null ? page.slots[state.selectedSlotIndex] : null;
+  const slot = state.selectedSlotIndex!=null ? currentSlots(page)[state.selectedSlotIndex] : null;
   if(!slot) return;
   slot.zoom = +e.target.value;
   document.getElementById('zoomVal').textContent = slot.zoom.toFixed(2)+'x';
@@ -1085,7 +1282,7 @@ document.getElementById('slotZoom').addEventListener('input', e=>{
 });
 document.getElementById('btnResetSlot').onclick = ()=>{
   const page = currentPage();
-  const slot = state.selectedSlotIndex!=null ? page.slots[state.selectedSlotIndex] : null;
+  const slot = state.selectedSlotIndex!=null ? currentSlots(page)[state.selectedSlotIndex] : null;
   if(!slot) return;
   slot.zoom = 1; slot.panX = 0; slot.panY = 0;
   renderSlotProps();
@@ -1194,10 +1391,9 @@ document.getElementById('fontFileInput').addEventListener('change', async e=>{
 // ---------- preview ----------
 document.getElementById('btnPreview').onclick = ()=>{
   const page = currentPage();
-  const n = LAYOUT_META[page.layout].count;
-  const hold = Math.max(1.5, parseFloat(document.getElementById("holdSeconds").value)||7);
-  const duration = (n-1)*STAGGER_INTERVAL + hold;
-  previewAnim = {start: performance.now(), duration};
+  const hold = Math.max(1, parseFloat(document.getElementById("holdSeconds").value)||1);
+  const duration = totalPageDuration(page, hold);
+  previewAnim = {start: performance.now(), duration, hold};
 };
 
 // ---------- export ----------
@@ -1227,7 +1423,7 @@ function pickVideoMime(){
 
 document.getElementById('btnExportVid').onclick = async ()=>{
   const page = currentPage();
-  const filled = page.slots.some(s=>s);
+  const filled = page.groups.some(g=>g.some(s=>s));
   if(!filled) return alert('請先上傳至少一項照片或影片素材');
   const mime = pickVideoMime();
   if(!mime) return alert('此瀏覽器不支援錄製影片，建議改用 Safari 或 Chrome 最新版');
@@ -1235,17 +1431,16 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   const btn = document.getElementById('btnExportVid');
   btn.disabled = true; const origText = btn.textContent; btn.textContent='錄製中…';
 
-  const n = LAYOUT_META[page.layout].count;
-  const staggerEnd = (n-1)*STAGGER_INTERVAL;
-  const hold = Math.max(1.5, parseFloat(document.getElementById("holdSeconds").value)||7);
-  const videoDurations = page.slots.filter(s=>s && s.type==='video').map(s=>s.el.duration||0);
-  const maxVideo = videoDurations.length ? Math.max(...videoDurations) : 0;
-  const duration = Math.max(staggerEnd + hold, staggerEnd + maxVideo + 0.3);
+  const hold = Math.max(1, parseFloat(document.getElementById("holdSeconds").value)||1);
+  const duration = totalPageDuration(page, hold);
 
   const exp = document.createElement('canvas'); exp.width=W; exp.height=H;
   const ectx = exp.getContext('2d');
+  const first = groupAtTime(page, hold, 0);
+  renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
 
-  page.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime = 0; s.el.loop=false; s.el.play().catch(()=>{}); } });
+  page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.pause(); s.el.loop=false; } }));
+  let activeGroupIndex = -1;
 
   const stream = exp.captureStream(30);
   const recorder = new MediaRecorder(stream, {mimeType: mime});
@@ -1265,11 +1460,16 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   const start = performance.now();
   function frame(){
     const t = (performance.now()-start)/1000;
-    renderPage(ectx, page, {animate:true, t, forExport:true});
+    const g = groupAtTime(page, hold, t);
+    if(g.index !== activeGroupIndex){
+      activeGroupIndex = g.index;
+      g.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime = 0; s.el.play().catch(()=>{}); } });
+    }
+    renderPage(ectx, page, {animate:true, t:g.localT, forExport:true, slots:g.slots});
     if(t < duration){ requestAnimationFrame(frame); }
     else {
       recorder.stop();
-      page.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.loop=true; } });
+      page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.loop=true; } }));
     }
   }
   requestAnimationFrame(frame);
@@ -1281,6 +1481,7 @@ document.getElementById('btnExportVid').onclick = async ()=>{
 function renderAll(){
   renderPageList();
   renderLayoutGrid();
+  renderGroupList();
   renderTextLayerList();
   renderTextProps();
   renderSlotProps();
