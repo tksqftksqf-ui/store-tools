@@ -972,8 +972,8 @@ canvas.addEventListener('pointerdown', e=>{
     if(selRect){
       const ic = slotSwapIconPos(selRect);
       if(Math.hypot(p.x-ic.x, p.y-ic.y) <= HANDLE_HIT_R){
-        pendingSlotIndex = state.selectedSlotIndex;
-        mediaFileInput.click();
+        drag = {mode:'swapicon', slotIndex: state.selectedSlotIndex};
+        canvas.setPointerCapture(e.pointerId);
         return;
       }
     }
@@ -1065,6 +1065,15 @@ canvas.addEventListener('pointerup', e=>{
   clearLongPress();
   if(drag && drag.mode==='pinch'){
     if(activePointers.size<2) drag = null;
+    return;
+  }
+  if(drag && drag.mode==='swapicon'){
+    const idx = drag.slotIndex;
+    drag = null;
+    if(!pointerMoved){
+      pendingSlotIndex = idx;
+      mediaFileInput.click();
+    }
     return;
   }
   const wasDrag = drag && pointerMoved;
