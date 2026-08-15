@@ -474,25 +474,31 @@ function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
     const el = slot.el;
     const dur = el.duration;
     if(!isFinite(dur) || dur<=0) return;
-    let revealAt, elapsed, target;
     if(sequential){
+      el.loop = false; // 依序模式每格只播一輪，不依賴瀏覽器原生循環（避免跟強制定位互相拉扯造成畫面晃動）
       if(seqInfo.finished.has(i)){
-        // 已播完的格子定格在最後一幀，不再播放
+        // 已播完的格子維持停在目前畫面即可，不需逐幀重新定位（避免反覆seek造成畫面閃爍/晃動）
         if(!el.paused) el.pause();
-        if(Math.abs(el.currentTime - (dur-0.05)) > 0.05) el.currentTime = dur-0.05;
         return;
       }
       if(seqInfo.current.index !== i){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
-      elapsed = seqInfo.current.slotLocalT;
-      target = Math.min(elapsed, dur - 0.05); // 依序模式每格只播一輪，尾端0.3秒緩衝不應折返回0
+      const elapsed = seqInfo.current.slotLocalT;
+      if(elapsed >= dur - 0.05){
+        // 已到達自己片段結尾，直接定格暫停，不再逐幀重新定位
+        if(!el.paused){ el.pause(); el.currentTime = dur - 0.05; }
+        return;
+      }
+      if(el.paused) el.play().catch(()=>{});
+      if(Math.abs(el.currentTime - elapsed) > 0.15) el.currentTime = elapsed;
     } else {
-      revealAt = i*STAGGER_INTERVAL;
+      el.loop = true;
+      const revealAt = i*STAGGER_INTERVAL;
       if(groupLocalT < revealAt){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
-      elapsed = groupLocalT - revealAt;
-      target = elapsed % dur; // 未輪到播放上限前持續循環
+      const elapsed = groupLocalT - revealAt;
+      const target = elapsed % dur; // 未輪到播放上限前持續循環
+      if(el.paused) el.play().catch(()=>{});
+      if(Math.abs(el.currentTime - target) > 0.15) el.currentTime = target;
     }
-    if(el.paused) el.play().catch(()=>{});
-    if(Math.abs(el.currentTime - target) > 0.15) el.currentTime = target;
   });
 }
 
@@ -756,7 +762,7 @@ function loop(){
     renderPage(ctx, page, {animate:true, t:g.localT, slots:g.slots, holdSeconds:previewAnim.hold});
     if(t > previewAnim.duration){
       previewAnim = null;
-      page.groups.forEach(gr=> gr.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime=0; s.el.play().catch(()=>{}); } }));
+      page.groups.forEach(gr=> gr.forEach(s=>{ if(s && s.type==='video'){ s.el.loop=true; s.el.currentTime=0; s.el.play().catch(()=>{}); } }));
     }
   } else {
     renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen, selectedShapeId: state.selectedShapeId});
