@@ -177,6 +177,10 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <button class="sbtn" id="btnPhotoFirst" style="width:100%;margin-bottom:8px">📷 先選照片建立新頁</button>
       <div id="photoFirstBanner" style="display:none"></div>
       <div class="layoutgrid" id="layoutGrid"></div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:13px;cursor:pointer">
+        <input type="checkbox" id="chkSequential">
+        依序播放（一次只顯示一格，播完換下一格；多格版型才有效）
+      </label>
     </div>
 
     <div class="panel">
@@ -386,6 +390,7 @@ function newPage(layout='one'){
     layout,
     groups: [Array.from({length:LAYOUT_META[layout].count},()=>null)],
     currentGroup: 0,
+    sequential: false,
     texts: [],
     shapes: [],
   };
@@ -403,7 +408,30 @@ function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 
 function currentPage(){ return state.pages[state.currentPageIndex]; }
 function currentSlots(page){ return page.groups[page.currentGroup]; }
-function groupDuration(layout, slots, holdSeconds){
+function slotDuration(slot, holdSeconds){
+  if(!slot) return 0;
+  if(slot.type==='video'){
+    const d = slot.el.duration;
+    return (isFinite(d) && d>0) ? d + 0.3 : holdSeconds;
+  }
+  return holdSeconds;
+}
+function sequentialSlotAt(slots, holdSeconds, localT){
+  const filled = slots.map((s,i)=>i).filter(i=>slots[i]);
+  if(!filled.length) return {index:-1, slotLocalT:0};
+  let acc = 0;
+  for(let k=0;k<filled.length;k++){
+    const i = filled[k];
+    const d = slotDuration(slots[i], holdSeconds);
+    if(localT < acc+d || k===filled.length-1) return {index:i, slotLocalT: localT-acc};
+    acc += d;
+  }
+}
+function groupDuration(layout, slots, holdSeconds, sequential){
+  if(sequential){
+    const sum = slots.reduce((s,slot)=> s + slotDuration(slot, holdSeconds), 0);
+    return sum || holdSeconds;
+  }
   const n = LAYOUT_META[layout].count;
   const staggerEnd = (n-1)*STAGGER_INTERVAL;
   const videoDurations = slots.filter(s=>s && s.type==='video').map(s=>s.el.duration).filter(d=>isFinite(d) && d>0);
@@ -411,12 +439,12 @@ function groupDuration(layout, slots, holdSeconds){
   return staggerEnd + holdSeconds;
 }
 function totalPageDuration(page, holdSeconds){
-  return page.groups.reduce((sum,g)=> sum + groupDuration(page.layout, g, holdSeconds), 0);
+  return page.groups.reduce((sum,g)=> sum + groupDuration(page.layout, g, holdSeconds, page.sequential), 0);
 }
 function groupAtTime(page, holdSeconds, t){
   let acc = 0;
   for(let i=0;i<page.groups.length;i++){
-    const d = groupDuration(page.layout, page.groups[i], holdSeconds);
+    const d = groupDuration(page.layout, page.groups[i], holdSeconds, page.sequential);
     if(t < acc+d || i===page.groups.length-1){
       return {slots: page.groups[i], localT: t-acc, index: i};
     }
@@ -558,7 +586,16 @@ function renderPage(ctx, page, opts){
   ctx.fillStyle = '#000';
   ctx.fillRect(0,0,W,H);
   const rects = rectsFor(page.layout);
+  const seqActive = (opts.animate && page.sequential)
+    ? sequentialSlotAt(slots, opts.holdSeconds||1, opts.t||0)
+    : null;
   rects.forEach((rect,i)=>{
+    if(seqActive){
+      if(i !== seqActive.index) return;
+      const slot = slots[i];
+      if(slot) drawCover(ctx, slot, rect);
+      return;
+    }
     const revealAt = i*STAGGER_INTERVAL;
     if(opts.animate && opts.t < revealAt) return;
     const slot = slots[i];
@@ -669,7 +706,7 @@ function loop(){
   if(previewAnim){
     const t = (performance.now()-previewAnim.start)/1000;
     const g = groupAtTime(page, previewAnim.hold, t);
-    renderPage(ctx, page, {animate:true, t:g.localT, slots:g.slots});
+    renderPage(ctx, page, {animate:true, t:g.localT, slots:g.slots, holdSeconds:previewAnim.hold});
     if(t > previewAnim.duration) previewAnim = null;
   } else {
     renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen, selectedShapeId: state.selectedShapeId});
@@ -712,6 +749,7 @@ document.getElementById('btnDupPage').onclick = ()=>{
   p.shapes = copy.shapes.map(s=>({...s, id:uid()}));
   p.groups = src.groups.map(g=>g.slice());
   p.currentGroup = src.currentGroup;
+  p.sequential = src.sequential;
   state.pages.splice(state.currentPageIndex+1,0,p);
   state.currentPageIndex++;
   state.selectedSlotIndex = null;
@@ -862,6 +900,9 @@ function renderLayoutGrid(){
     };
     el.appendChild(b);
   });
+  const chk = document.getElementById('chkSequential');
+  chk.checked = !!currentPage().sequential;
+  chk.onchange = ()=>{ currentPage().sequential = chk.checked; };
 }
 
 
@@ -1447,10 +1488,11 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   const exp = document.createElement('canvas'); exp.width=W; exp.height=H;
   const ectx = exp.getContext('2d');
   const first = groupAtTime(page, hold, 0);
-  renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
+  renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots, holdSeconds:hold}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
 
   page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.pause(); s.el.loop=false; } }));
   let activeGroupIndex = -1;
+  let activeSeqIndex = -1;
 
   const stream = exp.captureStream(30);
   const recorder = new MediaRecorder(stream, {mimeType: mime});
@@ -1473,9 +1515,19 @@ document.getElementById('btnExportVid').onclick = async ()=>{
     const g = groupAtTime(page, hold, t);
     if(g.index !== activeGroupIndex){
       activeGroupIndex = g.index;
-      g.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime = 0; s.el.play().catch(()=>{}); } });
+      activeSeqIndex = -1;
+      if(!page.sequential) g.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime = 0; s.el.play().catch(()=>{}); } });
     }
-    renderPage(ectx, page, {animate:true, t:g.localT, forExport:true, slots:g.slots});
+    if(page.sequential){
+      const seq = sequentialSlotAt(g.slots, hold, g.localT);
+      if(seq.index !== activeSeqIndex){
+        if(activeSeqIndex!==-1 && g.slots[activeSeqIndex] && g.slots[activeSeqIndex].type==='video') g.slots[activeSeqIndex].el.pause();
+        activeSeqIndex = seq.index;
+        const activeSlot = g.slots[activeSeqIndex];
+        if(activeSlot && activeSlot.type==='video'){ activeSlot.el.currentTime = 0; activeSlot.el.play().catch(()=>{}); }
+      }
+    }
+    renderPage(ectx, page, {animate:true, t:g.localT, forExport:true, slots:g.slots, holdSeconds:hold});
     if(t < duration){ requestAnimationFrame(frame); }
     else {
       recorder.stop();
