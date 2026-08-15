@@ -47,10 +47,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .ctrl-block{grid-area:ctrlblock;display:flex;flex-direction:column;align-items:center;gap:12px}
 .ctrl-block .panel{width:min(340px,80vw)}
 
-.pagelist{display:flex;flex-direction:column;gap:6px}
-.pagerow{display:flex;gap:6px}
-.pagebtn{flex:1;padding:8px 6px;border-radius:10px;border:1.5px solid var(--border);background:var(--light);cursor:pointer;font-size:13px;font-weight:600;color:var(--text);font-family:inherit;text-align:center}
-.pagebtn.on{background:var(--text);color:#fff;border-color:var(--text)}
 .smallbtns{display:flex;gap:6px;margin-top:8px}
 .sbtn{flex:1;padding:6px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:12px;color:var(--gray);font-family:inherit}
 .sbtn:hover{border-color:var(--blue);color:var(--blue)}
@@ -61,7 +57,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .layoutgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .layoutbtn{border:1.5px solid var(--border);border-radius:10px;background:var(--light);cursor:pointer;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:inherit;position:relative}
 .layoutbtn.on{border-color:var(--blue);background:var(--blue-bg)}
-.layoutbtn svg{width:34px;height:60px}
+.layoutbtn svg{width:auto;height:auto;max-width:44px;max-height:56px}
 .layoutbtn span{font-size:11px;color:var(--gray);font-weight:600}
 .layoutbtn.on span{color:var(--blue)}
 .layoutbtn.wide{grid-column:1/3}
@@ -73,7 +69,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Ne
 .photofirst-banner .cancel{display:block;margin-top:4px;color:var(--gray);cursor:pointer;text-decoration:underline;font-size:11px}
 
 .stage-wrap{background:#111;border-radius:16px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.12);width:fit-content;margin:0 auto}
-#stage{display:block;width:min(340px,80vw);aspect-ratio:9/16;height:auto;border-radius:10px;background:#000;touch-action:none;cursor:default}
+#stage{display:block;height:auto;border-radius:10px;background:#000;touch-action:none;cursor:default}
+#stage.orient-portrait{width:min(340px,80vw);aspect-ratio:9/16}
+#stage.orient-landscape{width:min(640px,92vw);aspect-ratio:16/9}
 
 .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .ctrlbtn{padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:13px;font-weight:600;color:var(--text);font-family:inherit;display:flex;align-items:center;gap:6px}
@@ -128,11 +126,12 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       "rightblock";
     padding:12px 12px 60px;gap:12px;
   }
-  #stage{width:min(400px,84vw,38vh)}
+  #stage.orient-portrait{width:min(400px,84vw,38vh)}
+  #stage.orient-landscape{width:min(420px,90vw)}
   .text-block .panel,.ctrl-block .panel{width:min(420px,88vw)}
   .hint{max-width:100%}
   .ctrlbtn{padding:12px 18px;font-size:14px}
-  .pagebtn,.sbtn{padding:11px 6px;font-size:14px}
+  .sbtn{padding:11px 6px;font-size:14px}
   .layoutbtn{padding:12px 4px}
   .layoutbtn span{font-size:12px}
   input[type=range]{height:28px}
@@ -145,16 +144,14 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 
 <div class="hdr">
   <div><a class="hdr-back" href="../">← 回服務工具箱</a><span class="hdr-title">IG 限時動態製作工具</span></div>
-  <div class="hdr-sub">畫布 1080×1920（限動標準比例）</div>
+  <div class="hdr-sub" id="canvasInfo">畫布 1080×1920（直式（9:16））</div>
 </div>
 
 <div class="usage-banner">
   <div class="safety">🔒 素材使用安全性：本工具所有照片／影片皆僅在您的瀏覽器內處理，不會上傳到任何伺服器或雲端，關閉頁面即清除，請安心使用。</div>
-  <div class="usage-text"><b>版面：</b>可以先選照片再選版型（點「先選照片建立新頁」），也可以先選版型再選照片（直接點版型，之後點空格上傳）。若照片／影片數量超過版型格數，可在「輪播畫面」新增下一組，播完第一組會自動接續播放下一組。</div>
-  <div class="usage-text"><b>素材：</b>點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 1 秒出場，出場後照片會停留固定秒數、影片則播放到自己的長度結束。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。</div>
-  <div class="usage-text"><b>依序播放（版面配置面板內的開關）：</b>預設是「多格同時顯示」——所有格子依序滑入畫面後，會一起播放。勾選「依序播放」後，同一組畫面會改成一次只顯示一格：第一格播完自己的內容後，畫面上留著它（停在最後畫面），接著才輪到第二格出現並播放，依此類推，直到所有格子都播完為止，畫面上會同時留著每一格播完的畫面。</div>
-  <div class="usage-text"><b>文字：</b>拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。</div>
-  <div class="usage-text"><b>標示：</b>可新增圓形／橢圓形／方形標示框圈選照片重點，拖曳可移動、拖曳右下角把手可調整大小。</div>
+  <div class="usage-text"><b>素材：</b>可以照片也可以影片，依序間隔 1 秒出場，出場後照片停留固定秒數、影片播到自己長度結束。把素材拖到另一格再放開可互換內容。</div>
+  <div class="usage-text"><b>文字：</b>拖曳可移動位置，點一下可直接輸入內容，拖曳右下角把手調整大小，長按可複製。</div>
+  <div class="usage-text"><b>標示：</b>可新增圓形／橢圓形／方形框圈選重點，拖曳可移動、調整大小。</div>
   <div class="usage-text"><b>匯出：</b>影片匯出僅保留畫面（無聲音）。</div>
 </div>
 
@@ -163,19 +160,18 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
   <!-- LEFT: pages + layout -->
   <div class="left">
     <div class="panel">
-      <h3>頁面</h3>
-      <div class="pagelist" id="pageList"></div>
-      <div class="smallbtns">
-        <button class="sbtn" id="btnAddPage">＋ 新增</button>
-        <button class="sbtn" id="btnDupPage">複製</button>
-        <button class="sbtn danger" id="btnDelPage">刪除</button>
+      <h3>畫布方向</h3>
+      <div class="hint" style="margin:0 0 8px;text-align:left">切換後畫布尺寸改變，已上傳的素材／文字位置不會自動調整，需要手動重新拖曳。</div>
+      <div class="smallbtns" style="margin-top:0">
+        <button class="sbtn" id="btnOrientPortrait">📱 直式（9:16）</button>
+        <button class="sbtn" id="btnOrientLandscape">🖥 橫式（16:9）</button>
       </div>
     </div>
 
     <div class="panel">
       <h3>版面配置</h3>
-      <div class="hint" style="margin:0 0 8px;text-align:left">可以先選照片再選版型（點下方按鈕），也可以先選版型再選照片（直接點版型，之後點空格上傳）。</div>
-      <button class="sbtn" id="btnPhotoFirst" style="width:100%;margin-bottom:8px">📷 先選照片建立新頁</button>
+      <div class="hint" style="margin:0 0 8px;text-align:left">可以先選照片（會自動推薦適合的版型，套用在目前這一頁），也可以先選版型再選照片（直接點版型，之後點空格上傳）。</div>
+      <button class="sbtn" id="btnPhotoFirst" style="width:100%;margin-bottom:8px">📷 先選照片（自動推薦版型）</button>
       <div id="photoFirstBanner" style="display:none"></div>
       <div class="layoutgrid" id="layoutGrid"></div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:13px;cursor:pointer">
@@ -198,7 +194,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
   <!-- CANVAS -->
   <div class="stage-block">
     <div class="stage-wrap">
-      <canvas id="stage" width="1080" height="1920"></canvas>
+      <canvas id="stage" class="orient-portrait" width="1080" height="1920"></canvas>
     </div>
   </div>
 
@@ -309,10 +305,29 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 </div>
 
 <script>
-const W = 1080, H = 1920;
+const ORIENTATIONS = {
+  portrait:  {w:1080, h:1920, label:'直式（9:16）', aspect:'9/16'},
+  landscape: {w:1920, h:1080, label:'橫式（16:9）', aspect:'16/9'},
+};
+let orientation = 'portrait';
+let W = ORIENTATIONS[orientation].w, H = ORIENTATIONS[orientation].h;
 const canvas = document.getElementById('stage');
 const ctx = canvas.getContext('2d');
 const hiddenMedia = document.getElementById('hiddenMedia');
+function setOrientation(key){
+  orientation = key;
+  W = ORIENTATIONS[key].w; H = ORIENTATIONS[key].h;
+  canvas.width = W; canvas.height = H;
+  canvas.className = key==='landscape' ? 'orient-landscape' : 'orient-portrait';
+  document.getElementById('canvasInfo').textContent = `畫布 ${W}×${H}（${ORIENTATIONS[key].label}）`;
+  const page = currentPage();
+  if(!currentLayoutKeys().includes(page.layout)){
+    page.layout = 'one';
+    page.groups = page.groups.map(g=> Array.from({length:1},(_,i)=> g[i]||null));
+    state.selectedSlotIndex = null;
+  }
+  renderAll();
+}
 
 const PRESET_FONTS = [
   {family:'Noto Sans TC', label:'思源黑體（清晰標準）'},
@@ -368,17 +383,39 @@ function rectsFor(layout){
       for(let c=0;c<4;c++) cells.push({x:c*botW+(c>0?g:0), y:topH+g, w:botW-g, h:botH-g});
       return cells;
     }
+    case 'ltwo': {
+      const cw = W/2;
+      return [0,1].map(c=>({x:c*cw+(c>0?g:0), y:0, w:cw-g, h:H}));
+    }
+    case 'lthree': {
+      const cw = W/3;
+      return [0,1,2].map(c=>({x:c*cw+(c>0?g:0), y:0, w:cw-g, h:H}));
+    }
+    case 'eight': {
+      const cw=W/4, ch=H/2;
+      const cells=[];
+      for(let r=0;r<2;r++) for(let c=0;c<4;c++){
+        cells.push({x:c*cw+(c>0?g:0), y:r*ch+(r>0?g:0), w:cw-g, h:ch-g});
+      }
+      return cells;
+    }
   }
 }
 const LAYOUT_META = {
   one:    {count:1, label:'單張全版'},
   two:    {count:2, label:'2張橫式・等份'},
   three:  {count:3, label:'3張橫式・等份'},
-  four:   {count:4, label:'4張直式・等份'},
+  four:   {count:4, label:'4張・2x2格'},
   five23: {count:5, label:'5張・上2下3'},
   five14: {count:5, label:'5張・上1下4'},
-  six:    {count:6, label:'6張直式・等份'},
+  six:    {count:6, label:'6張・2x3格'},
+  ltwo:   {count:2, label:'2張・直式並排'},
+  lthree: {count:3, label:'3張・直式並排'},
+  eight:  {count:8, label:'8張・2x4格'},
 };
+const LAYOUT_KEYS_PORTRAIT = ['one','two','three','four','five23','five14','six'];
+const LAYOUT_KEYS_LANDSCAPE = ['one','ltwo','lthree','four','six','eight'];
+function currentLayoutKeys(){ return orientation==='landscape' ? LAYOUT_KEYS_LANDSCAPE : LAYOUT_KEYS_PORTRAIT; }
 
 const STAGGER_INTERVAL = 1; // 秒，同頁多素材依序出場的間隔
 const HANDLE_HIT_R = 80; // 文字縮放把手的可點擊半徑（canvas 內部座標）
@@ -773,46 +810,8 @@ function loop(){
 requestAnimationFrame(loop);
 
 // ---------- UI: pages ----------
-function renderPageList(){
-  const el = document.getElementById('pageList');
-  el.innerHTML='';
-  for(let i=0;i<state.pages.length;i+=2){
-    const row = document.createElement('div'); row.className='pagerow';
-    [i,i+1].forEach(idx=>{
-      if(idx>=state.pages.length) return;
-      const b = document.createElement('button');
-      b.className = 'pagebtn'+(idx===state.currentPageIndex?' on':'');
-      b.textContent = '頁面'+(idx+1);
-      b.onclick = ()=>{ state.currentPageIndex=idx; state.selectedTextId=null; state.selectedSlotIndex=null; state.selectedShapeId=null; renderAll(); };
-      row.appendChild(b);
-    });
-    el.appendChild(row);
-  }
-}
-
-document.getElementById('btnAddPage').onclick = ()=>{
-  state.pages.push(newPage(currentPage().layout));
-  state.currentPageIndex = state.pages.length-1;
-  state.selectedTextId = null;
-  state.selectedSlotIndex = null;
-  state.selectedShapeId = null;
-  renderAll();
-};
-document.getElementById('btnDupPage').onclick = ()=>{
-  const src = currentPage();
-  const copy = JSON.parse(JSON.stringify({layout:src.layout, texts:src.texts, shapes:src.shapes}));
-  const p = newPage(src.layout);
-  p.texts = copy.texts.map(t=>({...t, id:uid()}));
-  p.shapes = copy.shapes.map(s=>({...s, id:uid()}));
-  p.groups = src.groups.map(g=>g.slice());
-  p.currentGroup = src.currentGroup;
-  p.sequential = src.sequential;
-  state.pages.splice(state.currentPageIndex+1,0,p);
-  state.currentPageIndex++;
-  state.selectedSlotIndex = null;
-  state.selectedShapeId = null;
-  renderAll();
-};
+document.getElementById('btnOrientPortrait').onclick = ()=> setOrientation('portrait');
+document.getElementById('btnOrientLandscape').onclick = ()=> setOrientation('landscape');
 document.getElementById('btnClearPage').onclick = ()=>{
   const page = currentPage();
   const hasContent = page.groups.some(g=>g.some(s=>s)) || page.texts.length>0 || page.shapes.length>0;
@@ -823,15 +822,6 @@ document.getElementById('btnClearPage').onclick = ()=>{
   page.currentGroup = 0;
   page.texts = [];
   page.shapes = [];
-  state.selectedTextId = null;
-  state.selectedSlotIndex = null;
-  state.selectedShapeId = null;
-  renderAll();
-};
-document.getElementById('btnDelPage').onclick = ()=>{
-  if(state.pages.length<=1) return alert('至少要保留一個頁面');
-  state.pages.splice(state.currentPageIndex,1);
-  state.currentPageIndex = Math.max(0, state.currentPageIndex-1);
   state.selectedTextId = null;
   state.selectedSlotIndex = null;
   state.selectedShapeId = null;
@@ -880,7 +870,7 @@ document.getElementById('btnDelGroup').onclick = ()=>{
 let photoFirstFiles = null; // 待套用版型的照片清單（「先選照片」流程用）
 
 function bestLayoutMatch(n){
-  const keys = Object.keys(LAYOUT_META);
+  const keys = currentLayoutKeys();
   const exact = keys.find(k=>LAYOUT_META[k].count===n);
   if(exact) return exact;
   const larger = keys.filter(k=>LAYOUT_META[k].count>n).sort((a,b)=>LAYOUT_META[a].count-LAYOUT_META[b].count);
@@ -893,7 +883,7 @@ function renderPhotoFirstBanner(){
   if(!photoFirstFiles){ el.style.display='none'; el.innerHTML=''; return; }
   el.style.display='block';
   el.className = 'photofirst-banner';
-  el.innerHTML = `已選 <b>${photoFirstFiles.length}</b> 張照片／影片，請點選下方版型套用（會自動建立新頁）<span class="cancel" id="photoFirstCancel">取消</span>`;
+  el.innerHTML = `已選 <b>${photoFirstFiles.length}</b> 張照片／影片，請點選下方版型套用（會套用到目前這一頁）<span class="cancel" id="photoFirstCancel">取消</span>`;
   document.getElementById('photoFirstCancel').onclick = ()=>{ photoFirstFiles=null; renderPhotoFirstBanner(); renderLayoutGrid(); };
 }
 
@@ -901,17 +891,17 @@ function applyPhotoFirst(key){
   const files = photoFirstFiles;
   photoFirstFiles = null;
   const count = LAYOUT_META[key].count;
-  const p = newPage(key);
+  const page = currentPage();
+  page.layout = key;
+  page.groups = page.groups.map(g=> Array.from({length:count},(_,i)=> g[i]||null));
+  page.groups[page.currentGroup].forEach(slot=> releaseSlotMedia(slot));
+  page.groups[page.currentGroup] = Array.from({length:count},()=>null);
   const targets = Math.min(count, files.length);
   for(let i=0;i<targets;i++){
     const idx = i;
-    loadMediaFile(files[i], media=>{ p.groups[0][idx] = media; });
+    loadMediaFile(files[i], media=>{ page.groups[page.currentGroup][idx] = media; });
   }
-  state.pages.push(p);
-  state.currentPageIndex = state.pages.length-1;
-  state.selectedTextId = null;
   state.selectedSlotIndex = null;
-  state.selectedShapeId = null;
   renderPhotoFirstBanner();
   renderAll();
   if(files.length > count){
@@ -931,15 +921,17 @@ document.getElementById('photoFirstInput').addEventListener('change', e=>{
 
 function layoutIcon(layout){
   const rects = rectsFor(layout);
-  const scale = 34/W;
-  let inner = rects.map(r=>`<rect x="${r.x*scale}" y="${r.y*(60/H)}" width="${r.w*scale}" height="${r.h*(60/H)}" rx="2" fill="#94a3b8"/>`).join('');
-  return `<svg viewBox="0 0 34 60">${inner}</svg>`;
+  const iconW = orientation==='landscape' ? 54 : 34;
+  const iconH = orientation==='landscape' ? 30 : 60;
+  const scale = iconW/W, scaleY = iconH/H;
+  let inner = rects.map(r=>`<rect x="${r.x*scale}" y="${r.y*scaleY}" width="${r.w*scale}" height="${r.h*scaleY}" rx="2" fill="#94a3b8"/>`).join('');
+  return `<svg viewBox="0 0 ${iconW} ${iconH}">${inner}</svg>`;
 }
 function renderLayoutGrid(){
   const el = document.getElementById('layoutGrid');
   el.innerHTML='';
   const recommendKey = photoFirstFiles ? bestLayoutMatch(photoFirstFiles.length) : null;
-  Object.keys(LAYOUT_META).forEach(key=>{
+  currentLayoutKeys().forEach(key=>{
     const b = document.createElement('button');
     b.className = 'layoutbtn'
       +(!photoFirstFiles && currentPage().layout===key?' on':'')
@@ -1519,7 +1511,7 @@ document.getElementById('btnExportImg').onclick = ()=>{
   const ectx = exp.getContext('2d');
   renderPage(ectx, page, {forExport:true});
   exp.toBlob(blob=>{
-    downloadBlob(blob, `限動_頁面${state.currentPageIndex+1}.png`);
+    downloadBlob(blob, `限動.png`);
   }, 'image/png');
 };
 
@@ -1558,7 +1550,7 @@ document.getElementById('btnExportVid').onclick = async ()=>{
     recorder.onstop = ()=>{
       const blob = new Blob(chunks, {type: mime.split(';')[0]});
       const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
-      downloadBlob(blob, `限動_頁面${state.currentPageIndex+1}.${ext}`);
+      downloadBlob(blob, `限動.${ext}`);
       resolve();
     };
   });
@@ -1583,7 +1575,6 @@ document.getElementById('btnExportVid').onclick = async ()=>{
 
 // ---------- top-level render ----------
 function renderAll(){
-  renderPageList();
   renderLayoutGrid();
   renderGroupList();
   renderTextLayerList();
