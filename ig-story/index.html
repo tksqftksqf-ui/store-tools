@@ -434,8 +434,8 @@ function groupDuration(layout, slots, holdSeconds, sequential){
   }
   const n = LAYOUT_META[layout].count;
   const staggerEnd = (n-1)*STAGGER_INTERVAL;
-  const videoDurations = slots.filter(s=>s && s.type==='video').map(s=>s.el.duration).filter(d=>isFinite(d) && d>0);
-  if(videoDurations.length) return staggerEnd + Math.max(...videoDurations) + 0.3;
+  const videoDurations = slots.map((s,i)=> s && s.type==='video' ? i*STAGGER_INTERVAL + s.el.duration : 0).filter(d=>isFinite(d) && d>0);
+  if(videoDurations.length) return Math.max(staggerEnd, Math.max(...videoDurations)) + 0.3;
   return staggerEnd + holdSeconds;
 }
 function totalPageDuration(page, holdSeconds){
@@ -450,6 +450,31 @@ function groupAtTime(page, holdSeconds, t){
     }
     acc += d;
   }
+}
+
+// 依「本組出現後經過的秒數」同步每一格影片的播放進度：尚未輪到出場的影片暫停在第0幀，
+// 已出場的影片依「自己出場以來經過的秒數」對齊 currentTime（循環播放時取模數）。
+function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
+  slots.forEach((slot,i)=>{
+    if(!slot || slot.type!=='video') return;
+    const el = slot.el;
+    const dur = el.duration;
+    if(!isFinite(dur) || dur<=0) return;
+    let revealAt, elapsed, target;
+    if(sequential){
+      const seq = sequentialSlotAt(slots, holdSeconds, groupLocalT);
+      if(seq.index !== i){ if(!el.paused) el.pause(); return; }
+      elapsed = seq.slotLocalT;
+      target = Math.min(elapsed, dur - 0.05); // 依序模式每格只播一輪，尾端0.3秒緩衝不應折返回0
+    } else {
+      revealAt = i*STAGGER_INTERVAL;
+      if(groupLocalT < revealAt){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
+      elapsed = groupLocalT - revealAt;
+      target = elapsed % dur; // 未輪到播放上限前持續循環
+    }
+    if(el.paused) el.play().catch(()=>{});
+    if(Math.abs(el.currentTime - target) > 0.15) el.currentTime = target;
+  });
 }
 
 // ---------- media loading ----------
@@ -706,8 +731,12 @@ function loop(){
   if(previewAnim){
     const t = (performance.now()-previewAnim.start)/1000;
     const g = groupAtTime(page, previewAnim.hold, t);
+    syncGroupVideos(g.slots, g.localT, page.sequential, previewAnim.hold);
     renderPage(ctx, page, {animate:true, t:g.localT, slots:g.slots, holdSeconds:previewAnim.hold});
-    if(t > previewAnim.duration) previewAnim = null;
+    if(t > previewAnim.duration){
+      previewAnim = null;
+      page.groups.forEach(gr=> gr.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime=0; s.el.play().catch(()=>{}); } }));
+    }
   } else {
     renderPage(ctx, page, {selectedId: state.selectedTextId, selectedSlot: state.selectedSlotIndex, hoverSlot: dragHoverSlot, hideHandle: inlineEditOpen, selectedShapeId: state.selectedShapeId});
   }
@@ -1488,11 +1517,9 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   const exp = document.createElement('canvas'); exp.width=W; exp.height=H;
   const ectx = exp.getContext('2d');
   const first = groupAtTime(page, hold, 0);
+  page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.pause(); s.el.loop=false; s.el.currentTime=0; } }));
+  syncGroupVideos(first.slots, first.localT, page.sequential, hold);
   renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots, holdSeconds:hold}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
-
-  page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.pause(); s.el.loop=false; } }));
-  let activeGroupIndex = -1;
-  let activeSeqIndex = -1;
 
   const stream = exp.captureStream(30);
   const recorder = new MediaRecorder(stream, {mimeType: mime});
@@ -1513,20 +1540,7 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   function frame(){
     const t = (performance.now()-start)/1000;
     const g = groupAtTime(page, hold, t);
-    if(g.index !== activeGroupIndex){
-      activeGroupIndex = g.index;
-      activeSeqIndex = -1;
-      if(!page.sequential) g.slots.forEach(s=>{ if(s && s.type==='video'){ s.el.currentTime = 0; s.el.play().catch(()=>{}); } });
-    }
-    if(page.sequential){
-      const seq = sequentialSlotAt(g.slots, hold, g.localT);
-      if(seq.index !== activeSeqIndex){
-        if(activeSeqIndex!==-1 && g.slots[activeSeqIndex] && g.slots[activeSeqIndex].type==='video') g.slots[activeSeqIndex].el.pause();
-        activeSeqIndex = seq.index;
-        const activeSlot = g.slots[activeSeqIndex];
-        if(activeSlot && activeSlot.type==='video'){ activeSlot.el.currentTime = 0; activeSlot.el.play().catch(()=>{}); }
-      }
-    }
+    syncGroupVideos(g.slots, g.localT, page.sequential, hold);
     renderPage(ectx, page, {animate:true, t:g.localT, forExport:true, slots:g.slots, holdSeconds:hold});
     if(t < duration){ requestAnimationFrame(frame); }
     else {
