@@ -151,7 +151,8 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
 <div class="usage-banner">
   <div class="safety">🔒 素材使用安全性：本工具所有照片／影片皆僅在您的瀏覽器內處理，不會上傳到任何伺服器或雲端，關閉頁面即清除，請安心使用。</div>
   <div class="usage-text"><b>版面：</b>可以先選照片再選版型（點「先選照片建立新頁」），也可以先選版型再選照片（直接點版型，之後點空格上傳）。若照片／影片數量超過版型格數，可在「輪播畫面」新增下一組，播完第一組會自動接續播放下一組。</div>
-  <div class="usage-text"><b>素材：</b>點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 1 秒出場。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。</div>
+  <div class="usage-text"><b>素材：</b>點擊空白版位可上傳照片／影片，可一次選取多個檔案，會依序自動填入接下來的空格；同頁多個素材會依序間隔 1 秒出場，出場後照片會停留固定秒數、影片則播放到自己的長度結束。拖曳已上傳的素材可調整顯示位置，滑鼠滾輪或雙指縮放皆可調整大小；把素材拖到另一格再放開可互換兩格內容。</div>
+  <div class="usage-text"><b>依序播放（版面配置面板內的開關）：</b>預設是「多格同時顯示」——所有格子依序滑入畫面後，會一起播放。勾選「依序播放」後，同一組畫面會改成一次只顯示一格：第一格播完自己的內容後，畫面上留著它（停在最後畫面），接著才輪到第二格出現並播放，依此類推，直到所有格子都播完為止，畫面上會同時留著每一格播完的畫面。</div>
   <div class="usage-text"><b>文字：</b>拖曳文字可移動位置，點一下已選取的文字可直接輸入內容，拖曳右下角圓形把手可調整文字大小，長按文字可複製一個相同的文字框。</div>
   <div class="usage-text"><b>標示：</b>可新增圓形／橢圓形／方形標示框圈選照片重點，拖曳可移動、拖曳右下角把手可調整大小。</div>
   <div class="usage-text"><b>匯出：</b>影片匯出僅保留畫面（無聲音）。</div>
@@ -179,7 +180,7 @@ input[type=color]{width:100%;height:32px;border:1.5px solid var(--border);border
       <div class="layoutgrid" id="layoutGrid"></div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:13px;cursor:pointer">
         <input type="checkbox" id="chkSequential">
-        依序播放（一次只顯示一格，播完換下一格；多格版型才有效）
+        依序播放（一格播完才輪到下一格，播完的格子會留在畫面上；多格版型才有效）
       </label>
     </div>
 
