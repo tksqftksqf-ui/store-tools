@@ -406,9 +406,9 @@ function currentSlots(page){ return page.groups[page.currentGroup]; }
 function groupDuration(layout, slots, holdSeconds){
   const n = LAYOUT_META[layout].count;
   const staggerEnd = (n-1)*STAGGER_INTERVAL;
-  const videoDurations = slots.filter(s=>s && s.type==='video').map(s=>s.el.duration||0);
-  const maxVideo = videoDurations.length ? Math.max(...videoDurations) : 0;
-  return Math.max(staggerEnd + holdSeconds, staggerEnd + maxVideo + 0.3);
+  const videoDurations = slots.filter(s=>s && s.type==='video').map(s=>s.el.duration).filter(d=>isFinite(d) && d>0);
+  if(videoDurations.length) return staggerEnd + Math.max(...videoDurations) + 0.3;
+  return staggerEnd + holdSeconds;
 }
 function totalPageDuration(page, holdSeconds){
   return page.groups.reduce((sum,g)=> sum + groupDuration(page.layout, g, holdSeconds), 0);
