@@ -427,6 +427,19 @@ function sequentialSlotAt(slots, holdSeconds, localT){
     acc += d;
   }
 }
+// 依序播放模式：已播完的格子維持顯示（定格最後一幀），尚未輪到的格子留白
+function sequentialVisibleSlots(slots, holdSeconds, localT){
+  const filled = slots.map((s,i)=>i).filter(i=>slots[i]);
+  const current = sequentialSlotAt(slots, holdSeconds, localT);
+  const finished = new Set();
+  let acc = 0;
+  for(const i of filled){
+    if(i === current.index) break;
+    finished.add(i);
+    acc += slotDuration(slots[i], holdSeconds);
+  }
+  return {current, finished};
+}
 function groupDuration(layout, slots, holdSeconds, sequential){
   if(sequential){
     const sum = slots.reduce((s,slot)=> s + slotDuration(slot, holdSeconds), 0);
@@ -455,6 +468,7 @@ function groupAtTime(page, holdSeconds, t){
 // 依「本組出現後經過的秒數」同步每一格影片的播放進度：尚未輪到出場的影片暫停在第0幀，
 // 已出場的影片依「自己出場以來經過的秒數」對齊 currentTime（循環播放時取模數）。
 function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
+  const seqInfo = sequential ? sequentialVisibleSlots(slots, holdSeconds, groupLocalT) : null;
   slots.forEach((slot,i)=>{
     if(!slot || slot.type!=='video') return;
     const el = slot.el;
@@ -462,9 +476,14 @@ function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
     if(!isFinite(dur) || dur<=0) return;
     let revealAt, elapsed, target;
     if(sequential){
-      const seq = sequentialSlotAt(slots, holdSeconds, groupLocalT);
-      if(seq.index !== i){ if(!el.paused) el.pause(); return; }
-      elapsed = seq.slotLocalT;
+      if(seqInfo.finished.has(i)){
+        // 已播完的格子定格在最後一幀，不再播放
+        if(!el.paused) el.pause();
+        if(Math.abs(el.currentTime - (dur-0.05)) > 0.05) el.currentTime = dur-0.05;
+        return;
+      }
+      if(seqInfo.current.index !== i){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
+      elapsed = seqInfo.current.slotLocalT;
       target = Math.min(elapsed, dur - 0.05); // 依序模式每格只播一輪，尾端0.3秒緩衝不應折返回0
     } else {
       revealAt = i*STAGGER_INTERVAL;
@@ -611,12 +630,14 @@ function renderPage(ctx, page, opts){
   ctx.fillStyle = '#000';
   ctx.fillRect(0,0,W,H);
   const rects = rectsFor(page.layout);
-  const seqActive = (opts.animate && page.sequential)
-    ? sequentialSlotAt(slots, opts.holdSeconds||1, opts.t||0)
+  const seqInfo = (opts.animate && page.sequential)
+    ? sequentialVisibleSlots(slots, opts.holdSeconds||1, opts.t||0)
     : null;
   rects.forEach((rect,i)=>{
-    if(seqActive){
-      if(i !== seqActive.index) return;
+    if(seqInfo){
+      const isCurrent = i === seqInfo.current.index;
+      const isFinished = seqInfo.finished.has(i);
+      if(!isCurrent && !isFinished) return;
       const slot = slots[i];
       if(slot) drawCover(ctx, slot, rect);
       return;
