@@ -513,29 +513,36 @@ function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
     const dur = el.duration;
     if(!isFinite(dur) || dur<=0) return;
     if(sequential){
-      el.loop = false; // 依序模式每格只播一輪，不依賴瀏覽器原生循環（避免跟強制定位互相拉扯造成畫面晃動）
+      el.loop = false; // 依序模式每格只播一輪，播完靠瀏覽器原生行為自動定格在最後一幀
       if(seqInfo.finished.has(i)){
-        // 已播完的格子維持停在目前畫面即可，不需逐幀重新定位（避免反覆seek造成畫面閃爍/晃動）
         if(!el.paused) el.pause();
         return;
       }
-      if(seqInfo.current.index !== i){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
-      const elapsed = seqInfo.current.slotLocalT;
-      if(elapsed >= dur - 0.05){
-        // 已到達自己片段結尾，直接定格暫停，不再逐幀重新定位
-        if(!el.paused){ el.pause(); el.currentTime = dur - 0.05; }
+      if(seqInfo.current.index !== i){
+        if(!el.paused) el.pause();
+        slot._started = false; // 尚未輪到，重置狀態等下次真正輪到時重新從頭播放
         return;
       }
+      // 輪到這一格：只在剛出現的那一刻設定一次從頭播放，之後放手讓瀏覽器自己播，不逐幀強制校正（避免多支影片同時播放時效能負擔造成整體卡頓）
+      if(!slot._started){
+        slot._started = true;
+        el.currentTime = 0;
+      }
       if(el.paused) el.play().catch(()=>{});
-      if(Math.abs(el.currentTime - elapsed) > 0.15) el.currentTime = elapsed;
     } else {
       el.loop = true;
       const revealAt = i*STAGGER_INTERVAL;
-      if(groupLocalT < revealAt){ if(!el.paused) el.pause(); el.currentTime = 0; return; }
-      const elapsed = groupLocalT - revealAt;
-      const target = elapsed % dur; // 未輪到播放上限前持續循環
+      if(groupLocalT < revealAt){
+        if(!el.paused) el.pause();
+        el.currentTime = 0;
+        slot._started = false;
+        return;
+      }
+      if(!slot._started){
+        slot._started = true;
+        el.currentTime = 0;
+      }
       if(el.paused) el.play().catch(()=>{});
-      if(Math.abs(el.currentTime - target) > 0.15) el.currentTime = target;
     }
   });
 }
@@ -1489,10 +1496,14 @@ document.getElementById('fontFileInput').addEventListener('change', async e=>{
 });
 
 // ---------- preview ----------
+function resetPlaybackState(page){
+  page.groups.forEach(g=> g.forEach(slot=>{ if(slot) slot._started = false; }));
+}
 document.getElementById('btnPreview').onclick = ()=>{
   const page = currentPage();
   const hold = Math.max(1, parseFloat(document.getElementById("holdSeconds").value)||1);
   const duration = totalPageDuration(page, hold);
+  resetPlaybackState(page);
   previewAnim = {start: performance.now(), duration, hold};
 };
 
@@ -1537,6 +1548,7 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   const exp = document.createElement('canvas'); exp.width=W; exp.height=H;
   const ectx = exp.getContext('2d');
   const first = groupAtTime(page, hold, 0);
+  resetPlaybackState(page);
   page.groups.forEach(g=> g.forEach(s=>{ if(s && s.type==='video'){ s.el.pause(); s.el.loop=false; s.el.currentTime=0; } }));
   syncGroupVideos(first.slots, first.localT, page.sequential, hold);
   renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots, holdSeconds:hold}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
