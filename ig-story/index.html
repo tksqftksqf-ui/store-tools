@@ -505,6 +505,19 @@ function groupAtTime(page, holdSeconds, t){
 
 // 依「本組出現後經過的秒數」同步每一格影片的播放進度：尚未輪到出場的影片暫停在第0幀，
 // 已出場的影片依「自己出場以來經過的秒數」對齊 currentTime（循環播放時取模數）。
+function nextSequentialIndex(slots, currentIndex){
+  const filled = slots.map((s,i)=>i).filter(i=>slots[i]);
+  const pos = filled.indexOf(currentIndex);
+  return (pos>=0 && pos+1<filled.length) ? filled[pos+1] : -1;
+}
+function warmUpVideo(slot){
+  if(!slot || slot.type!=='video' || slot._warmed) return;
+  slot._warmed = true;
+  const el = slot.el;
+  el.currentTime = 0;
+  el.play().then(()=>el.pause()).catch(()=>{});
+}
+const PREWARM_LEAD = 0.4; // 秒，提早這麼久觸發下一支影片解碼，減少真正輪到播放時的啟動延遲卡頓
 function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
   const seqInfo = sequential ? sequentialVisibleSlots(slots, holdSeconds, groupLocalT) : null;
   slots.forEach((slot,i)=>{
@@ -529,6 +542,11 @@ function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
         el.currentTime = 0;
       }
       if(el.paused) el.play().catch(()=>{});
+      // 快播完時提早暖機下一支影片的解碼器（暫停狀態，畫面上不會顯示），減少交接瞬間的啟動延遲卡頓
+      if(dur - seqInfo.current.slotLocalT <= PREWARM_LEAD){
+        const nextIdx = nextSequentialIndex(slots, i);
+        if(nextIdx !== -1) warmUpVideo(slots[nextIdx]);
+      }
     } else {
       el.loop = true;
       const revealAt = i*STAGGER_INTERVAL;
@@ -536,6 +554,7 @@ function syncGroupVideos(slots, groupLocalT, sequential, holdSeconds){
         if(!el.paused) el.pause();
         el.currentTime = 0;
         slot._started = false;
+        if(revealAt - groupLocalT <= PREWARM_LEAD) warmUpVideo(slot);
         return;
       }
       if(!slot._started){
@@ -1497,7 +1516,7 @@ document.getElementById('fontFileInput').addEventListener('change', async e=>{
 
 // ---------- preview ----------
 function resetPlaybackState(page){
-  page.groups.forEach(g=> g.forEach(slot=>{ if(slot) slot._started = false; }));
+  page.groups.forEach(g=> g.forEach(slot=>{ if(slot){ slot._started = false; slot._warmed = false; } }));
 }
 document.getElementById('btnPreview').onclick = ()=>{
   const page = currentPage();
@@ -1554,7 +1573,7 @@ document.getElementById('btnExportVid').onclick = async ()=>{
   renderPage(ectx, page, {animate:true, t:0, forExport:true, slots:first.slots, holdSeconds:hold}); // 先畫出第一格畫面，避免影片縮圖/封面顯示全黑
 
   const stream = exp.captureStream(30);
-  const recorder = new MediaRecorder(stream, {mimeType: mime});
+  const recorder = new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond: 8_000_000});
   const chunks = [];
   recorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
 
